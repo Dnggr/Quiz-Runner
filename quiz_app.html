@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#14151d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Quiz Runner</title>
 <style>
   :root{
@@ -16,8 +20,10 @@
     --accent-dim: #3a3f5c;
     --danger: #ff6b6b;
     --success: #4cd97b;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
-  *{box-sizing:border-box;}
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
   html,body{
     margin:0;
     padding:0;
@@ -25,11 +31,14 @@
     color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     min-height:100vh;
+    min-height:100dvh;
+    -webkit-text-size-adjust:100%;
+    overscroll-behavior-y:contain;
   }
   .wrap{
     max-width:640px;
     margin:0 auto;
-    padding:32px 20px 60px;
+    padding:calc(24px + var(--safe-top)) 18px calc(40px + var(--safe-bottom));
   }
   h1{
     font-size:22px;
@@ -40,16 +49,17 @@
     color:var(--text-dim);
     font-size:14px;
     margin-bottom:24px;
+    line-height:1.5;
   }
   textarea{
     width:100%;
-    min-height:320px;
+    min-height:280px;
     background:var(--card);
     border:1px solid var(--card-border);
     border-radius:10px;
     color:var(--text);
     padding:14px;
-    font-size:13px;
+    font-size:16px; /* 16px prevents iOS auto-zoom on focus */
     line-height:1.5;
     font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     resize:vertical;
@@ -67,17 +77,22 @@
     cursor:pointer;
     text-align:center;
     transition:background .15s, border-color .15s, opacity .15s;
+    touch-action:manipulation;
+    min-height:48px; /* touch-friendly target */
+    -webkit-user-select:none;
+    user-select:none;
   }
   .btn:hover:not(:disabled){border-color:var(--card-border-hover);background:#22232f;}
+  .btn:active:not(:disabled){transform:scale(0.98);}
   .btn:disabled{opacity:.4;cursor:not-allowed;}
   .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
   .btn-primary:hover:not(:disabled){background:#5968f2;}
   .btn-unsure{color:#f5b942;border-color:#5c4b2a;}
   .btn-unsure:hover:not(:disabled){border-color:#f5b942;background:#2a2418;}
   .btn-unsure.active{background:#3a2f16;border-color:#f5b942;}
-  .row{display:flex;gap:12px;margin-top:16px;}
-  .row .btn{flex:1;}
-  .top-actions{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+  .row{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;}
+  .row .btn{flex:1;min-width:140px;}
+  .top-actions{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:12px;}
   .pill{
     font-size:12px;
     color:var(--text-dim);
@@ -85,6 +100,7 @@
     border:1px solid var(--card-border);
     padding:5px 10px;
     border-radius:999px;
+    white-space:nowrap;
   }
   .link-btn{
     background:none;
@@ -93,7 +109,8 @@
     font-size:13px;
     cursor:pointer;
     text-decoration:underline;
-    padding:0;
+    padding:8px 0;
+    touch-action:manipulation;
   }
   .link-btn:hover{color:var(--text);}
 
@@ -131,6 +148,7 @@
     line-height:1.5;
     margin-bottom:22px;
     white-space:pre-wrap;
+    word-break:break-word;
   }
 
   .option{
@@ -144,8 +162,12 @@
     margin-bottom:12px;
     cursor:pointer;
     transition:border-color .15s, background .15s;
+    touch-action:manipulation;
+    -webkit-user-select:none;
+    user-select:none;
   }
   .option:hover{border-color:var(--card-border-hover);}
+  .option:active{background:#22233a;}
   .option.selected{border-color:var(--accent);background:#20223a;}
   .circle{
     width:18px;
@@ -165,10 +187,10 @@
     border-radius:50%;
     background:var(--accent);
   }
-  .option-text{font-size:15px;}
+  .option-text{font-size:15px;line-height:1.4;}
 
-  .nav-row{display:flex;gap:12px;margin-top:24px;}
-  .nav-row .btn{flex:1;}
+  .nav-row{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap;}
+  .nav-row .btn{flex:1;min-width:0;}
 
   .jumpgrid{
     display:grid;
@@ -187,6 +209,8 @@
     align-items:center;
     justify-content:center;
     cursor:pointer;
+    touch-action:manipulation;
+    min-height:38px;
   }
   .jump.answered{border-color:var(--success);color:var(--success);}
   .jump.unsure{border-color:#f5b942;color:#f5b942;}
@@ -200,6 +224,7 @@
     font-size:13px;
     line-height:1.6;
     white-space:pre-wrap;
+    word-break:break-word;
     font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     max-height:400px;
     overflow-y:auto;
@@ -227,6 +252,31 @@
     font-size:13px;
     margin-top:14px;
     display:none;
+  }
+
+  /* --- Small phone tweaks --- */
+  @media (max-width: 420px){
+    .wrap{padding-left:14px;padding-right:14px;}
+    h1{font-size:20px;}
+    .q-text{font-size:15.5px;}
+    .btn{font-size:14px;padding:13px 14px;}
+    .nav-row{gap:8px;}
+    .top-actions{flex-wrap:wrap;}
+    .jumpgrid{grid-template-columns:repeat(auto-fill, minmax(32px, 1fr));}
+  }
+
+  /* Stack Prev/Not sure/Next into 2 rows on very narrow screens so labels never clip */
+  @media (max-width: 360px){
+    .nav-row{flex-wrap:wrap;}
+    .nav-row .btn{flex:1 1 calc(50% - 5px);}
+    .nav-row .btn#nextBtn{flex:1 1 100%;order:-1;}
+  }
+
+  /* --- Desktop / larger screens: give a bit more breathing room --- */
+  @media (min-width: 720px){
+    .wrap{padding-top:56px;}
+    .q-text{font-size:17px;}
+    .option{padding:18px 20px;}
   }
 </style>
 </head>
@@ -299,6 +349,7 @@ let currentIndex = 0;
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
 }
 
 function parseQuestions(raw){
@@ -472,11 +523,32 @@ function backToQuiz(){
 
 function copyExport(){
   const text = document.getElementById('exportBox').textContent;
-  navigator.clipboard.writeText(text).then(() => {
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(() => {
+      document.getElementById('copiedMsg').textContent = 'Copied to clipboard.';
+    }).catch(() => {
+      fallbackCopy(text);
+    });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text){
+  try{
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
     document.getElementById('copiedMsg').textContent = 'Copied to clipboard.';
-  }).catch(() => {
+  }catch(e){
     document.getElementById('copiedMsg').textContent = 'Could not copy automatically — select the text manually.';
-  });
+  }
 }
 
 function downloadExport(){
