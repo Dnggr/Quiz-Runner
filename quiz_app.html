@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz Runner</title>
+<style>
+  :root{
+    --bg: #14151d;
+    --card: #1c1d29;
+    --card-border: #33343f;
+    --card-border-hover: #4b4d5c;
+    --text: #e8e8ec;
+    --text-dim: #9a9ba8;
+    --accent: #6c7bff;
+    --accent-dim: #3a3f5c;
+    --danger: #ff6b6b;
+    --success: #4cd97b;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    padding:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+  }
+  .wrap{
+    max-width:640px;
+    margin:0 auto;
+    padding:32px 20px 60px;
+  }
+  h1{
+    font-size:22px;
+    font-weight:700;
+    margin:0 0 4px;
+  }
+  .subtitle{
+    color:var(--text-dim);
+    font-size:14px;
+    margin-bottom:24px;
+  }
+  textarea{
+    width:100%;
+    min-height:320px;
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:10px;
+    color:var(--text);
+    padding:14px;
+    font-size:13px;
+    line-height:1.5;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    resize:vertical;
+  }
+  textarea:focus{outline:none;border-color:var(--accent);}
+  .btn{
+    display:inline-block;
+    background:var(--card);
+    border:1px solid var(--card-border);
+    color:var(--text);
+    padding:14px 20px;
+    border-radius:10px;
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+    text-align:center;
+    transition:background .15s, border-color .15s, opacity .15s;
+  }
+  .btn:hover:not(:disabled){border-color:var(--card-border-hover);background:#22232f;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn-primary:hover:not(:disabled){background:#5968f2;}
+  .btn-unsure{color:#f5b942;border-color:#5c4b2a;}
+  .btn-unsure:hover:not(:disabled){border-color:#f5b942;background:#2a2418;}
+  .btn-unsure.active{background:#3a2f16;border-color:#f5b942;}
+  .row{display:flex;gap:12px;margin-top:16px;}
+  .row .btn{flex:1;}
+  .top-actions{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+  .pill{
+    font-size:12px;
+    color:var(--text-dim);
+    background:var(--card);
+    border:1px solid var(--card-border);
+    padding:5px 10px;
+    border-radius:999px;
+  }
+  .link-btn{
+    background:none;
+    border:none;
+    color:var(--text-dim);
+    font-size:13px;
+    cursor:pointer;
+    text-decoration:underline;
+    padding:0;
+  }
+  .link-btn:hover{color:var(--text);}
+
+  .progress-track{
+    width:100%;
+    height:6px;
+    background:var(--card);
+    border-radius:99px;
+    overflow:hidden;
+    margin-bottom:24px;
+  }
+  .progress-fill{
+    height:100%;
+    background:var(--accent);
+    transition:width .2s;
+  }
+
+  .q-label{
+    font-size:13px;
+    color:var(--text-dim);
+    margin-bottom:6px;
+  }
+  .q-title{
+    font-size:24px;
+    font-weight:700;
+    margin:0 0 22px;
+  }
+  .q-hint{
+    font-size:15px;
+    color:var(--text-dim);
+    margin-bottom:6px;
+  }
+  .q-text{
+    font-size:16px;
+    line-height:1.5;
+    margin-bottom:22px;
+    white-space:pre-wrap;
+  }
+
+  .option{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:10px;
+    padding:16px;
+    margin-bottom:12px;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .option:hover{border-color:var(--card-border-hover);}
+  .option.selected{border-color:var(--accent);background:#20223a;}
+  .circle{
+    width:18px;
+    height:18px;
+    min-width:18px;
+    border-radius:50%;
+    border:2px solid #5a5c6b;
+    position:relative;
+    flex-shrink:0;
+  }
+  .option.selected .circle{border-color:var(--accent);}
+  .option.selected .circle::after{
+    content:"";
+    position:absolute;
+    top:3px;left:3px;
+    width:8px;height:8px;
+    border-radius:50%;
+    background:var(--accent);
+  }
+  .option-text{font-size:15px;}
+
+  .nav-row{display:flex;gap:12px;margin-top:24px;}
+  .nav-row .btn{flex:1;}
+
+  .jumpgrid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(38px, 1fr));
+    gap:8px;
+    margin:18px 0 24px;
+  }
+  .jump{
+    aspect-ratio:1;
+    border-radius:8px;
+    border:1px solid var(--card-border);
+    background:var(--card);
+    color:var(--text-dim);
+    font-size:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  .jump.answered{border-color:var(--success);color:var(--success);}
+  .jump.unsure{border-color:#f5b942;color:#f5b942;}
+  .jump.current{border-color:var(--accent);background:var(--accent-dim);color:var(--text);}
+
+  pre#exportBox{
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:10px;
+    padding:16px;
+    font-size:13px;
+    line-height:1.6;
+    white-space:pre-wrap;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    max-height:400px;
+    overflow-y:auto;
+  }
+  .copied-msg{
+    font-size:13px;
+    color:var(--success);
+    margin-top:8px;
+    height:16px;
+  }
+  .note{
+    font-size:12px;
+    color:var(--text-dim);
+    margin-top:18px;
+    line-height:1.5;
+  }
+  .screen{display:none;}
+  .screen.active{display:block;}
+  .error-box{
+    background:#3a1f24;
+    border:1px solid #6b3238;
+    color:#ff9b9b;
+    padding:12px 14px;
+    border-radius:10px;
+    font-size:13px;
+    margin-top:14px;
+    display:none;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- SCREEN 1: PASTE QUESTIONS -->
+  <div class="screen active" id="screen-input">
+    <h1>Quiz Runner</h1>
+    <div class="subtitle">Paste the question set below, then load it to start answering. Works with numbered questions like <code>1.</code> or <code>**1.**</code>, multiple-choice options <code>A.</code>–<code>D.</code>, and True/False questions.</div>
+    <textarea id="rawInput" placeholder="Paste your questions here, e.g.
+
+1. What is the primary purpose of a computer network?
+A. To increase the physical size of computers
+B. To allow devices to communicate and share resources
+C. To eliminate the need for operating systems
+D. To prevent devices from communicating with one another
+
+37. True or False: A device can have both a MAC address and an IP address."></textarea>
+    <div class="error-box" id="parseError"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:16px;" onclick="loadQuestions()">Load Questions</button>
+  </div>
+
+  <!-- SCREEN 2: QUIZ -->
+  <div class="screen" id="screen-quiz">
+    <div class="top-actions">
+      <span class="pill" id="progressPill">Question 1 of 1</span>
+      <button class="link-btn" onclick="confirmReset()">Start over</button>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+    <div class="q-label" id="qLabel">Question 1</div>
+    <div id="qHintWrap"></div>
+    <div class="q-text" id="qText"></div>
+    <div id="optionsWrap"></div>
+
+    <div class="nav-row">
+      <button class="btn" id="prevBtn" onclick="goPrev()">Previous</button>
+      <button class="btn btn-unsure" id="unsureBtn" onclick="markUnsure()">Not sure</button>
+      <button class="btn btn-primary" id="nextBtn" onclick="goNext()">Next</button>
+    </div>
+
+    <div class="jumpgrid" id="jumpGrid"></div>
+  </div>
+
+  <!-- SCREEN 3: EXPORT -->
+  <div class="screen" id="screen-export">
+    <h1>Done</h1>
+    <div class="subtitle" id="exportSummary"></div>
+    <pre id="exportBox"></pre>
+    <div class="row">
+      <button class="btn btn-primary" onclick="copyExport()">Copy answers</button>
+      <button class="btn" onclick="downloadExport()">Download .txt</button>
+    </div>
+    <div class="copied-msg" id="copiedMsg"></div>
+    <div class="row">
+      <button class="btn" onclick="backToQuiz()">Back to review</button>
+      <button class="btn" onclick="confirmReset()">Start new quiz</button>
+    </div>
+    <div class="note">Paste the text above back into your chat to have it graded. Unanswered questions are marked as "I don't know".</div>
+  </div>
+
+</div>
+
+<script>
+let questions = [];
+let answers = {};
+let currentIndex = 0;
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function parseQuestions(raw){
+  const lines = raw.split(/\r?\n/);
+  const qStartRegex = /^\*{0,2}(\d+)\.\*{0,2}\s*(.*)$/;
+  const optRegex = /^([A-Da-d])[\.\)]\s*(.*)$/;
+  let parsed = [];
+  let current = null;
+
+  for(let rawLine of lines){
+    const line = rawLine.trim();
+    if(!line) continue;
+
+    const qMatch = line.match(qStartRegex);
+    if(qMatch){
+      if(current) parsed.push(current);
+      current = { number: parseInt(qMatch[1],10), text: qMatch[2].trim(), options: [] };
+      continue;
+    }
+
+    const oMatch = line.match(optRegex);
+    if(oMatch && current){
+      current.options.push({ letter: oMatch[1].toUpperCase(), text: oMatch[2].trim() });
+      continue;
+    }
+
+    if(current){
+      if(current.options.length === 0){
+        current.text += (current.text ? ' ' : '') + line;
+      }
+    }
+  }
+  if(current) parsed.push(current);
+
+  parsed.forEach(q => {
+    if(q.options.length === 0){
+      q.type = 'tf';
+      q.options = [
+        { letter:'True', text:'True' },
+        { letter:'False', text:'False' }
+      ];
+      q.text = q.text.replace(/^true or false:?\s*/i,'').trim();
+    } else {
+      q.type = 'mc';
+    }
+  });
+
+  return parsed;
+}
+
+function loadQuestions(){
+  const raw = document.getElementById('rawInput').value;
+  const errBox = document.getElementById('parseError');
+  errBox.style.display = 'none';
+
+  const parsed = parseQuestions(raw);
+  if(parsed.length === 0){
+    errBox.textContent = "Couldn't find any questions in that text. Make sure each question starts with a number like \"1.\" and options (if any) start with \"A.\", \"B.\", etc.";
+    errBox.style.display = 'block';
+    return;
+  }
+
+  questions = parsed;
+  answers = {};
+  currentIndex = 0;
+  showScreen('screen-quiz');
+  renderQuestion();
+}
+
+function renderQuestion(){
+  const q = questions[currentIndex];
+  document.getElementById('progressPill').textContent = `Question ${currentIndex+1} of ${questions.length}`;
+  document.getElementById('progressFill').style.width = `${((currentIndex)/(questions.length-1||1))*100}%`;
+  document.getElementById('qLabel').textContent = `Question ${q.number}`;
+
+  const hintWrap = document.getElementById('qHintWrap');
+  hintWrap.innerHTML = q.type === 'tf' ? '<div class="q-hint">True or false?</div>' : '';
+
+  document.getElementById('qText').textContent = q.text;
+
+  const optionsWrap = document.getElementById('optionsWrap');
+  optionsWrap.innerHTML = '';
+  q.options.forEach(opt => {
+    const selected = answers[q.number] === opt.letter;
+    const el = document.createElement('div');
+    el.className = 'option' + (selected ? ' selected' : '');
+    el.onclick = () => selectAnswer(q.number, opt.letter);
+    el.innerHTML = `<div class="circle"></div><div class="option-text">${opt.letter !== 'True' && opt.letter !== 'False' ? opt.letter + '. ' : ''}${escapeHtml(opt.text)}</div>`;
+    optionsWrap.appendChild(el);
+  });
+
+  document.getElementById('prevBtn').disabled = currentIndex === 0;
+  document.getElementById('nextBtn').textContent = currentIndex === questions.length - 1 ? 'Finish' : 'Next';
+  document.getElementById('unsureBtn').classList.toggle('active', answers[q.number] === 'UNSURE');
+
+  renderJumpGrid();
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function selectAnswer(qNumber, letter){
+  answers[qNumber] = letter;
+  renderQuestion();
+}
+
+function markUnsure(){
+  const q = questions[currentIndex];
+  answers[q.number] = 'UNSURE';
+  goNext();
+}
+
+function goNext(){
+  if(currentIndex === questions.length - 1){
+    finishQuiz();
+  } else {
+    currentIndex++;
+    renderQuestion();
+  }
+}
+
+function goPrev(){
+  if(currentIndex > 0){
+    currentIndex--;
+    renderQuestion();
+  }
+}
+
+function renderJumpGrid(){
+  const grid = document.getElementById('jumpGrid');
+  grid.innerHTML = '';
+  questions.forEach((q, i) => {
+    const btn = document.createElement('div');
+    let cls = 'jump';
+    if(i === currentIndex) cls += ' current';
+    else if(answers[q.number] === 'UNSURE') cls += ' unsure';
+    else if(answers[q.number] !== undefined) cls += ' answered';
+    btn.className = cls;
+    btn.textContent = q.number;
+    btn.onclick = () => { currentIndex = i; renderQuestion(); };
+    grid.appendChild(btn);
+  });
+}
+
+function finishQuiz(){
+  const allKeys = Object.keys(answers);
+  const unsureCount = allKeys.filter(k => answers[k] === 'UNSURE').length;
+  const answeredCount = allKeys.length - unsureCount;
+  const unansweredCount = questions.length - allKeys.length;
+  document.getElementById('exportSummary').textContent =
+    `${answeredCount} answered, ${unsureCount} marked "not sure", ${unansweredCount} skipped.`;
+
+  const lines = questions.map(q => {
+    const ans = answers[q.number];
+    if(ans === undefined) return `${q.number}. I don't know`;
+    if(ans === 'UNSURE') return `${q.number}. I'm not sure`;
+    return `${q.number}. ${ans}`;
+  });
+  document.getElementById('exportBox').textContent = lines.join('\n');
+  document.getElementById('copiedMsg').textContent = '';
+  showScreen('screen-export');
+}
+
+function backToQuiz(){
+  showScreen('screen-quiz');
+  renderQuestion();
+}
+
+function copyExport(){
+  const text = document.getElementById('exportBox').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById('copiedMsg').textContent = 'Copied to clipboard.';
+  }).catch(() => {
+    document.getElementById('copiedMsg').textContent = 'Could not copy automatically — select the text manually.';
+  });
+}
+
+function downloadExport(){
+  const text = document.getElementById('exportBox').textContent;
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'quiz-answers.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function confirmReset(){
+  if(confirm('Start over? This will clear the current question set and your answers.')){
+    questions = [];
+    answers = {};
+    currentIndex = 0;
+    document.getElementById('rawInput').value = '';
+    showScreen('screen-input');
+  }
+}
+</script>
+</body>
+</html>
