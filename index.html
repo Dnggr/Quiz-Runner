@@ -28,10 +28,43 @@ D. To prevent devices from communicating with one another
 37. True or False: A device can have both a MAC address and an IP address."></textarea>
     <div class="drop-hint" id="dropHint">Drop the file to load it</div>
     <div class="error-box" id="parseError" role="alert"></div>
-    <div class="ok-box" id="loadStatus" role="status"></div>
     <button class="btn btn-primary" id="loadBtn" style="width:100%;margin-top:16px;">Load Questions</button>
     <button class="btn" id="fileBtn" style="width:100%;margin-top:10px;">Choose a file…</button>
     <input type="file" id="fileInput" accept=".json,.txt,.md,application/json,text/plain,text/markdown" hidden>
+  </div>
+
+  <!-- SCREEN: PACK PROBLEMS (P2-06) -->
+  <div class="screen" id="screen-problems">
+    <h1>This pack can't be loaded</h1>
+    <div class="subtitle" id="problemsSummary" role="alert"></div>
+    <div class="error-box" id="problemsNote"></div>
+    <div id="problemsList"></div>
+    <div class="note">To fix this, ask the AI to correct these questions and send the complete pack again, or edit the file yourself and load it again. If you pasted the pack, it is still in the box on the load screen.</div>
+    <button class="btn btn-primary" id="problemsBackBtn" style="width:100%;margin-top:16px;">Back to the load screen</button>
+  </div>
+
+  <!-- SCREEN: TOPICS PREVIEW (P2-07) -->
+  <div class="screen" id="screen-preview">
+    <h1 id="previewTitle"></h1>
+    <div class="subtitle" id="previewSubject"></div>
+    <div class="pill-row" id="previewCounts"></div>
+    <div class="ok-box" id="previewNotice" role="status"></div>
+    <div class="warn-box" id="previewWarnings" role="status"></div>
+
+    <h2>Topics covered</h2>
+    <div id="topicList"></div>
+
+    <h2>Difficulty mix</h2>
+    <div id="difficultyMix"></div>
+
+    <div id="previewNotesWrap" style="display:none;">
+      <h2>Notes from the AI</h2>
+      <ul class="notes-list" id="previewNotes"></ul>
+    </div>
+
+    <button class="btn btn-primary" id="startExamBtn" style="width:100%;margin-top:24px;" disabled>Start exam</button>
+    <div class="note">Taking an exam from a Quiz Pack is not available yet. For now you can check what the pack covers.</div>
+    <button class="btn" id="chooseAnotherBtn" style="width:100%;margin-top:10px;">Choose another</button>
   </div>
 
   <!-- SCREEN 2: QUIZ -->

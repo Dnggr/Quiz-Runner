@@ -1,7 +1,8 @@
 // P2-04: validator errors (block) and warnings (allow).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validatePack } from '../js/validator.js';
+import { validatePack, groupIssues } from '../js/validator.js';
+import { SPEC_VERSION, ISSUE_GROUPS_MAX_LISTED } from '../js/constants.js';
 import { normalizePack, loadInput } from '../js/loader.js';
 import { basePack, readSample } from './helpers.js';
 
@@ -199,4 +200,94 @@ test('samples: expected validator outcome for each pack in samples/ and samples/
     assert.equal(res.ok, false, file);
     assert.deepEqual(res.errors.map((e) => [e.code, e.number]), want, file);
   }
+});
+
+// ---------------------------------------------------------------- P2-08: version warning
+
+test('P2-08 warning: pack version differs from SPEC_VERSION (loads anyway, never an error)', () => {
+  const p = basePack();
+  p.version = SPEC_VERSION + 1;
+  const { errors, warnings } = run(p);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(codes(warnings), ['version_mismatch']);
+  assert.equal(warnings[0].number, null);
+  assert.equal(warnings[0].index, null);
+  assert.match(warnings[0].message, new RegExp(`${SPEC_VERSION + 1}.*reads version ${SPEC_VERSION}`));
+  assert.equal(loadInput(JSON.stringify(p)).ok, true);
+});
+
+test('P2-08 warning: a missing or non-numeric version also differs; odd values are never echoed raw', () => {
+  const p = basePack();
+  delete p.version;
+  assert.deepEqual(codes(run(p).warnings), ['version_mismatch']);
+  assert.match(run(p).warnings[0].message, /doesn't say which format version/);
+
+  p.version = '1';
+  assert.deepEqual(codes(run(p).warnings), ['version_mismatch']);
+
+  p.version = { evil: '<img src=x onerror=alert(1)>' };
+  const [w] = run(p).warnings;
+  assert.match(w.message, /unrecognized value/);
+  assert.ok(!w.message.includes('<img'));
+});
+
+test('P2-08 no warning when the version matches', () => {
+  const p = basePack();
+  p.version = SPEC_VERSION;
+  assert.deepEqual(codes(run(p).warnings), []);
+});
+
+// ---------------------------------------------------------------- P2-06: grouping by question number
+
+test('groupIssues: pack-level issues first, then one group per question, sorted by number', () => {
+  const issues = [
+    { code: 'missing_answer', message: 'm3', number: 3, index: 2 },
+    { code: 'no_questions', message: 'pack', number: null, index: null },
+    { code: 'unknown_topic', message: 'm1', number: 1, index: 0 },
+    { code: 'missing_question', message: 'm3b', number: 3, index: 2 },
+  ];
+  const g = groupIssues(issues);
+  assert.deepEqual(g.pack.map((i) => i.message), ['pack']);
+  assert.deepEqual(g.questions.map((x) => [x.number, x.label, x.issues.map((i) => i.message)]), [
+    [1, 'Question 1', ['m1']],
+    [3, 'Question 3', ['m3', 'm3b']],
+  ]);
+});
+
+test('groupIssues: questions without a usable number are listed by position, after the numbered ones', () => {
+  const g = groupIssues([
+    { code: 'a', message: 'x', number: null, index: 4 },
+    { code: 'b', message: 'y', number: 9, index: 8 },
+    { code: 'c', message: 'z', number: null, index: 1 },
+  ]);
+  assert.deepEqual(g.questions.map((x) => x.label), ['Question 9', 'Question at position 2', 'Question at position 5']);
+});
+
+test('groupIssues: empty / junk input is safe', () => {
+  assert.deepEqual(groupIssues([]), { pack: [], questions: [] });
+  assert.deepEqual(groupIssues(undefined), { pack: [], questions: [] });
+});
+
+test('groupIssues on real validator output: every error lands under its own question number', () => {
+  const p = basePack();
+  delete p.questions[2].answer;          // Q3
+  p.questions[0].topic = 't9';           // Q1
+  p.questions[3].number = 2;             // duplicate of Q2 (reported under 2)
+  const g = groupIssues(run(p).errors);
+  assert.deepEqual(g.pack, []);
+  assert.deepEqual(g.questions.map((x) => [x.number, codes(x.issues)]), [
+    [1, ['unknown_topic']],
+    [2, ['duplicate_number']],
+    [3, ['missing_answer']],
+  ]);
+});
+
+test('groupIssues: a pack with no questions has only a pack-level group', () => {
+  const g = groupIssues(validatePack({ meta: {} }).errors);
+  assert.equal(g.pack.length, 1);
+  assert.deepEqual(g.questions, []);
+});
+
+test('ISSUE_GROUPS_MAX_LISTED is a positive integer (the screens cap their lists with it)', () => {
+  assert.ok(Number.isInteger(ISSUE_GROUPS_MAX_LISTED) && ISSUE_GROUPS_MAX_LISTED > 0);
 });

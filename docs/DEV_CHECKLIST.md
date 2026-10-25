@@ -38,10 +38,10 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
   - errors: missing `questions`, missing `question` / `answer` / `topic`, answer not in options, duplicate `number`, topic id not in `meta.topics`
   - warnings: count ≠ `meta.total_questions`, missing `explanation`, answer letters badly skewed (any letter > 40%), option count ≠ 4, missing `concept`
 - [x] P2-05 Normalize on load: uppercase letters, trim whitespace, infer `type` if missing, default `part`/`total_parts`
-- [ ] P2-06 Friendly error screen listing problems by question number
-- [ ] P2-07 Topics preview screen (title, topics + subtopics, count, difficulty mix, `meta.notes`)
-- [ ] P2-08 Warn (don't block) if pack `version` differs from `SPEC_VERSION`
-- [ ] P2-09 Unit tests for every file in `samples/` and `samples/broken/`
+- [x] P2-06 Friendly error screen listing problems by question number
+- [x] P2-07 Topics preview screen (title, topics + subtopics, count, difficulty mix, `meta.notes`)
+- [x] P2-08 Warn (don't block) if pack `version` differs from `SPEC_VERSION`
+- [x] P2-09 Unit tests for every file in `samples/` and `samples/broken/`
 
 **Done when:** every good sample loads, every broken sample gives a clear message, and nothing crashes.
 

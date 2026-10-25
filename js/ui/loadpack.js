@@ -1,10 +1,11 @@
 // ui/loadpack.js — the Load screen: paste, file picker, drag-and-drop (P2-01).
 // DOM only. All decisions (pack vs legacy vs error, parsing, validation) come from loader.js.
 //
-// INTERIM: pack results are shown as a short status box and kept in memory. The friendly error
-// screen (P2-06), Topics preview (P2-07) and the exam on a pack (Phase 3) replace that later.
+// What happens to the result is decided by the caller: a loadable pack goes to the Topics preview (P2-07),
+// a pack with errors goes to the error screen (P2-06), legacy text goes to Quick Paste. Text that is not a
+// pack at all (empty, unrecognized, invalid JSON) stays on this screen as a short message with a position.
 import { loadInput } from '../loader.js';
-import { ACCEPTED_FILE_EXTENSIONS, LOAD_STATUS_MAX_LISTED } from '../constants.js';
+import { ACCEPTED_FILE_EXTENSIONS } from '../constants.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,113 +20,76 @@ export function isAcceptedFile(file) {
 
 /**
  * @param {{
- *   startLegacy: (parsed: object[]) => void,     route to Quick Paste (answers only)
- *   isLoadScreenActive: () => boolean,           drops are ignored on other screens
+ *   startLegacy: (parsed: object[]) => void,                     route to Quick Paste (answers only)
+ *   onPack: (result: object, note?: string) => void,             a loadable pack (errors: none); warnings may be present
+ *   onPackProblems: (result: object, note?: string) => void,     a pack that failed validation (result.errors is not empty)
+ *   isLoadScreenActive: () => boolean,                           drops are ignored on other screens
  * }} options
- * @returns {{ getLoadedPack: () => object | null }}
  */
-export function initLoadScreen({ startLegacy, isLoadScreenActive }) {
-  let loadedPack = null;   // validated + normalized pack, in memory only (saved to storage in P3-09)
-
+export function initLoadScreen({ startLegacy, onPack, onPackProblems, isLoadScreenActive }) {
   // ---- messages --------------------------------------------------------------
   function clearMessages() {
-    for (const id of ['parseError', 'loadStatus']) {
-      const box = $(id);
-      box.textContent = '';
-      box.style.display = 'none';
-    }
-  }
-
-  /** @param {'parseError'|'loadStatus'} id  @param {string} heading  @param {{message: string}[]} items */
-  function showBox(id, heading, items = []) {
-    const box = $(id);
+    const box = $('parseError');
     box.textContent = '';
-    const title = document.createElement('div');
-    title.textContent = heading;            // pack content is untrusted: textContent only
-    box.appendChild(title);
-    appendList(box, items);
-    box.style.display = 'block';
-    return box;
+    box.style.display = 'none';
   }
 
-  function appendList(parent, items) {
-    if (items.length === 0) return;
-    const ul = document.createElement('ul');
-    for (const item of items.slice(0, LOAD_STATUS_MAX_LISTED)) {
-      const li = document.createElement('li');
-      li.textContent = item.message;
-      ul.appendChild(li);
+  /** Short message on the Load screen. @param {string} message  @param {string} [note] */
+  function showError(message, note = '') {
+    const box = $('parseError');
+    box.textContent = '';
+    for (const line of [message, note]) {
+      if (!line) continue;
+      const div = document.createElement('div');
+      div.textContent = line;               // pack content is untrusted: textContent only
+      box.appendChild(div);
     }
-    if (items.length > LOAD_STATUS_MAX_LISTED) {
-      const li = document.createElement('li');
-      li.textContent = `…and ${items.length - LOAD_STATUS_MAX_LISTED} more.`;
-      ul.appendChild(li);
-    }
-    parent.appendChild(ul);
+    box.style.display = 'block';
   }
 
   // ---- the one place text enters the app -----------------------------------------
-  /** @param {string} raw  pasted text or file contents */
-  function handleText(raw, { fromFile = false } = {}) {
+  /** @param {string} raw  pasted text or file contents  @param {{ fromFile?: boolean, note?: string }} [options] */
+  function handleText(raw, { fromFile = false, note = '' } = {}) {
     clearMessages();
     const result = loadInput(raw);
 
     if (result.kind === 'legacy') {
-      loadedPack = null;
       startLegacy(result.questions);         // today's behaviour: Quick Paste (answers only)
       return;
     }
 
     if (result.kind === 'error') {
-      loadedPack = null;
-      showBox('parseError', result.error.message);
+      showError(result.error.message, note);
       return;
     }
 
-    // kind === 'pack'
+    // kind === 'pack'. Keep the pasted text when it has problems so it can be fixed and loaded again.
     if (!result.ok) {
-      loadedPack = null;
-      const n = result.errors.length;
-      showBox('parseError', `This Quiz Pack can't be loaded: ${n} problem${n === 1 ? '' : 's'} found.`, result.errors);
+      onPackProblems(result, note);
       return;
     }
 
-    loadedPack = result.pack;
-    const meta = result.pack.meta || {};
-    const count = result.pack.questions.length;
-    const topics = Array.isArray(meta.topics) ? meta.topics.length : 0;
-    const summary =
-      `Quiz Pack loaded${meta.title ? `: ${meta.title}` : ''} — ${count} question${count === 1 ? '' : 's'}, ` +
-      `${topics} topic${topics === 1 ? '' : 's'}.` +
-      (result.repaired ? ' (Trailing commas were fixed automatically.)' : '');
-    const box = showBox('loadStatus', summary);
-    if (result.warnings.length > 0) {
-      const w = document.createElement('div');
-      w.className = 'warn-title';
-      w.textContent = `${result.warnings.length} warning${result.warnings.length === 1 ? '' : 's'} (the pack still loads):`;
-      box.appendChild(w);
-      appendList(box, result.warnings);
-    }
     // Don't leave the whole pack (answers included) sitting in the paste box.
     if (!fromFile) $('rawInput').value = '';
+    onPack(result, note);
   }
 
   // ---- file picker + drag-and-drop ---------------------------------------------------
-  async function handleFile(file) {
+  async function handleFile(file, { note = '' } = {}) {
     clearMessages();
     if (!file) return;
     if (!isAcceptedFile(file)) {
-      showBox('parseError', `"${file.name}" isn't a supported file. Choose a ${ACCEPTED_FILE_EXTENSIONS.join(', ')} file.`);
+      showError(`"${file.name}" isn't a supported file. Choose a ${ACCEPTED_FILE_EXTENSIONS.join(', ')} file.`, note);
       return;
     }
     let text;
     try {
       text = await file.text();
     } catch {
-      showBox('parseError', `Couldn't read "${file.name}". Try again, or paste its contents instead.`);
+      showError(`Couldn't read "${file.name}". Try again, or paste its contents instead.`, note);
       return;
     }
-    handleText(text, { fromFile: true });
+    handleText(text, { fromFile: true, note });
   }
 
   function hasFiles(event) {
@@ -159,17 +123,8 @@ export function initLoadScreen({ startLegacy, isLoadScreenActive }) {
     setDragging(false);
     if (!isLoadScreenActive()) return;
     const files = Array.from(e.dataTransfer.files || []);
-    if (files.length > 1) {
-      handleFile(files[0]).then(() => {
-        const box = $('parseError').style.display === 'block' ? $('parseError') : $('loadStatus');
-        const note = document.createElement('div');
-        note.textContent = `Only the first file (${files[0].name}) was loaded. Load one file at a time.`;
-        box.appendChild(note);
-        box.style.display = 'block';
-      });
-    } else {
-      handleFile(files[0]);
-    }
+    const note = files.length > 1 ? `Only the first file (${files[0].name}) was loaded. Load one file at a time.` : '';
+    handleFile(files[0], { note });
   });
 
   // ---- wiring ---------------------------------------------------------------------
@@ -180,6 +135,4 @@ export function initLoadScreen({ startLegacy, isLoadScreenActive }) {
     e.target.value = '';               // lets the same file be chosen again
     handleFile(file);
   });
-
-  return { getLoadedPack: () => loadedPack };
 }

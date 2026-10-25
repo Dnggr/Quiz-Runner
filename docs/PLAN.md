@@ -116,7 +116,8 @@ quiz-runner/
 │  ├─ constants.js       thresholds, versions, storage keys
 │  ├─ store.js           localStorage wrapper (+ in-memory fallback)
 │  ├─ loader.js          tolerant parse, salvage, legacy text parser
-│  ├─ validator.js       pack validation (errors vs warnings)
+│  ├─ validator.js       pack validation (errors vs warnings), groupIssues for the error screen
+│  ├─ packsummary.js     pure: loaded pack → data for the Topics preview
 │  ├─ grader.js          pure: pack + responses → result
 │  ├─ analytics.js       pure: topic stats, status, rating, next-exam allocation, history
 │  ├─ receipt.js         pure: result → markdown + json; receipt import

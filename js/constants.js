@@ -61,10 +61,11 @@ export const ANSWER_SKEW_MAX_SHARE = 0.40;   // warn when any correct letter is 
 export const EXPECTED_OPTION_COUNT = 4;
 export const OPTION_LETTERS = Object.freeze(['A', 'B', 'C', 'D']);
 export const MIN_QUESTIONS_PER_TOPIC_INITIAL = 3;
+export const DIFFICULTIES = Object.freeze(['easy', 'moderate', 'challenging']);   // QUIZ_PACK_SPEC §3.2
 
 // ---- Loading (DEV_CHECKLIST P2-01) --------------------------------------
 export const ACCEPTED_FILE_EXTENSIONS = Object.freeze(['.json', '.txt', '.md']);
-export const LOAD_STATUS_MAX_LISTED = 10;   // interim load-screen list; replaced by the error screen in P2-06
+export const ISSUE_GROUPS_MAX_LISTED = 25;   // error screen (P2-06) and preview warnings (P2-08): questions listed before "…and N more"
 
 // ---- Prompt Builder defaults (PROMPT_TEMPLATES, "Builder options") -------
 export const DEFAULT_COUNTS = Object.freeze({ initial: 130, targeted: 40, retention: 12 });

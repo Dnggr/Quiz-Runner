@@ -4,11 +4,11 @@
 //   ERRORS   block loading.   missing `questions` · missing `question` / `answer` / `topic`
 //                             · answer not in options · duplicate `number` · topic id not in `meta.topics`
 //   WARNINGS load anyway.     count ≠ `meta.total_questions` · missing `explanation` · any correct letter > 40%
-//                             · option count ≠ 4 · missing `concept`
+//                             · option count ≠ 4 · missing `concept` · `version` ≠ SPEC_VERSION (P2-08)
 //
 // Every issue carries the question number (or null for pack-level issues) so the error screen (P2-06)
-// can group problems by question. Thresholds come from constants.js.
-import { ANSWER_SKEW_MAX_SHARE, EXPECTED_OPTION_COUNT } from './constants.js';
+// can group problems by question: see `groupIssues`. Thresholds come from constants.js.
+import { ANSWER_SKEW_MAX_SHARE, EXPECTED_OPTION_COUNT, SPEC_VERSION } from './constants.js';
 
 /**
  * @typedef {{ code: string, message: string, number: number | null, index: number | null }} Issue
@@ -119,6 +119,10 @@ export function validatePack(pack) {
   });
 
   // ---- warnings that belong to the whole pack ------------------------------
+  if (pack.version !== SPEC_VERSION) {
+    warn('version_mismatch', versionMessage(pack.version));
+  }
+
   const totalParts = Number.isFinite(meta.total_parts) ? meta.total_parts : 1;
   if (Number.isFinite(meta.total_questions) && totalParts <= 1 && meta.total_questions !== questions.length) {
     warn('count_mismatch', `meta.total_questions says ${meta.total_questions} but the pack has ${questions.length} questions.`);
@@ -150,4 +154,51 @@ function numberOf(q) {
 function label(q, index) {
   const n = numberOf(q);
   return n !== null ? `Question ${n}` : `The question at position ${index + 1}`;
+}
+
+/** P2-08: pack content is untrusted, so only plain scalars are echoed back. */
+function versionMessage(version) {
+  const tail = 'The pack will still load, but anything that changed between versions may not work as expected.';
+  if (version === undefined || version === null || version === '') {
+    return `The pack doesn't say which format version it uses (this app reads version ${SPEC_VERSION}). ${tail}`;
+  }
+  const shown = typeof version === 'string' || typeof version === 'number' || typeof version === 'boolean'
+    ? JSON.stringify(version)
+    : 'an unrecognized value';
+  return `The pack says its format version is ${shown}, but this app reads version ${SPEC_VERSION}. ${tail}`;
+}
+
+/**
+ * P2-06: group issues for display. Pack-level issues (no `index`) come first; then one group per question.
+ * Groups are ordered by question number; a question without a usable number is listed by its
+ * position in the file after the numbered ones.
+ * @param {Issue[]} issues
+ * @returns {{ pack: Issue[], questions: { number: number | null, index: number, label: string, issues: Issue[] }[] }}
+ */
+export function groupIssues(issues) {
+  const pack = [];
+  const groups = new Map();
+  for (const issue of Array.isArray(issues) ? issues : []) {
+    if (issue.index === null || issue.index === undefined) {
+      pack.push(issue);
+      continue;
+    }
+    const key = issue.number !== null ? `n${issue.number}` : `i${issue.index}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        number: issue.number,
+        index: issue.index,
+        label: issue.number !== null ? `Question ${issue.number}` : `Question at position ${issue.index + 1}`,
+        issues: [],
+      });
+    }
+    groups.get(key).issues.push(issue);
+  }
+  const questions = [...groups.values()].sort((a, b) => {
+    if (a.number !== null && b.number !== null) return a.number - b.number || a.index - b.index;
+    if (a.number !== null) return -1;
+    if (b.number !== null) return 1;
+    return a.index - b.index;
+  });
+  return { pack, questions };
 }

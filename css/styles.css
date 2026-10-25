@@ -261,6 +261,56 @@ pre#exportBox{
 #screen-input.drag-over textarea{border-color:var(--accent);background:#1f2030;}
 #screen-input.drag-over .drop-hint{display:block;}
 
+/* --- Pack problems + Topics preview (P2-06 / P2-07) --- */
+h2{font-size:16px;font-weight:700;margin:26px 0 10px;}
+.issue-group{
+  background:var(--card);
+  border:1px solid #6b3238;
+  border-left-width:4px;
+  border-radius:10px;
+  padding:12px 14px;
+  margin-top:10px;
+}
+.issue-label{font-size:14px;font-weight:700;margin:0 0 4px;color:#ff9b9b;}
+.issue-group ul{margin:4px 0 0;padding-left:20px;font-size:14px;line-height:1.5;}
+.issue-more{margin-top:12px;font-size:13px;color:var(--text-dim);line-height:1.5;}
+.pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+.warn-box{
+  background:#2a2418;
+  border:1px solid #5c4b2a;
+  color:#f5d28a;
+  padding:12px 14px;
+  border-radius:10px;
+  font-size:13px;
+  margin-top:14px;
+  line-height:1.5;
+  display:none;
+}
+.warn-box .warn-title{font-weight:700;color:#f5b942;}
+.warn-box ul{margin:6px 0 0;padding-left:20px;}
+.warn-details{margin-top:8px;}
+.warn-details summary{cursor:pointer;min-height:32px;padding:6px 0;}
+.warn-details .issue-group{border-color:#5c4b2a;}
+.warn-details .issue-label{color:#f5b942;}
+.topic-card{
+  background:var(--card);
+  border:1px solid var(--card-border);
+  border-radius:10px;
+  padding:12px 14px;
+  margin-top:10px;
+}
+.topic-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;}
+.topic-name{font-size:15px;font-weight:700;margin:0;}
+.topic-count{font-size:12px;color:var(--text-dim);white-space:nowrap;}
+.chips{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px;}
+.chip{font-size:12px;color:var(--text-dim);border:1px solid var(--card-border);border-radius:999px;padding:3px 10px;}
+.mix-row{margin-top:10px;}
+.mix-label{font-size:14px;margin-bottom:4px;}
+.mix-untagged{color:var(--text-dim);margin-top:10px;}
+.mix-track{height:8px;background:var(--card);border:1px solid var(--card-border);border-radius:99px;overflow:hidden;}
+.mix-fill{height:100%;background:var(--accent);}
+.notes-list{margin:0;padding-left:20px;font-size:14px;line-height:1.5;color:var(--text-dim);}
+
 /* --- Small phone tweaks --- */
 @media (max-width: 420px){
   .wrap{padding-left:14px;padding-right:14px;}
