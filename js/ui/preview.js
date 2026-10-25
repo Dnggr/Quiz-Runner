@@ -16,11 +16,12 @@ function el(tag, className, text) {
 }
 
 /**
- * @param {{ onChooseAnother: () => void }} options
+ * @param {{ onChooseAnother: () => void, onStart: () => void }} options
  * @returns {{ show: (result: object, note?: string) => void, clear: () => void }}
  */
-export function initPreview({ onChooseAnother }) {
+export function initPreview({ onChooseAnother, onStart }) {
   $('chooseAnotherBtn').addEventListener('click', onChooseAnother);
+  $('startExamBtn').addEventListener('click', onStart);
 
   function clear() {
     for (const id of ['previewTitle', 'previewSubject', 'previewCounts', 'topicList', 'difficultyMix', 'previewNotes']) {

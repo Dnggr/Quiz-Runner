@@ -46,12 +46,12 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 **Done when:** every good sample loads, every broken sample gives a clear message, and nothing crashes.
 
 ## Phase 3 — Exam and results
-- [ ] P3-01 Response model per question: `{ selected: 'A'|…|null, unsure: boolean }`
-- [ ] P3-02 "Not sure" UX (confirm): no option selected → mark unsure and advance (as today); option selected → toggle flag and stay
-- [ ] P3-03 Autosave to `session` on every change; resume banner on app load
-- [ ] P3-04 Finish confirmation showing unanswered and unsure counts, with shortcuts "Go to first unanswered" / "Review unsure"
-- [ ] P3-05 `grader.js` (pure): pack + responses → per-question outcome (`correct` / `wrong` / `skipped`, plus `unsure`) and totals
-- [ ] P3-06 Results screen — Overview: score `x/N`, percentage, rating, counts
+- [x] P3-01 Response model per question: `{ selected: 'A'|…|null, unsure: boolean }`
+- [x] P3-02 "Not sure" UX (confirm): no option selected → mark unsure and advance (as today); option selected → toggle flag and stay
+- [x] P3-03 Autosave to `session` on every change; resume banner on app load
+- [x] P3-04 Finish confirmation showing unanswered and unsure counts, with shortcuts "Go to first unanswered" / "Review unsure"
+- [x] P3-05 `grader.js` (pure): pack + responses → per-question outcome (`correct` / `wrong` / `skipped`, plus `unsure`) and totals
+- [x] P3-06 Results screen — Overview: score `x/N`, percentage, rating, counts
 - [ ] P3-07 Results — Review: filter chips (Wrong · Unsure · Skipped · All); each item shows question, your answer, correct answer, explanation, topic, concept
 - [ ] P3-08 Jump grid on results colored by outcome
 - [ ] P3-09 Save graded result to `history`; save pack as `pack:<quiz_id>`

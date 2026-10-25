@@ -4,6 +4,13 @@ import { initQuickPaste } from './ui/quickpaste.js';
 import { initLoadScreen } from './ui/loadpack.js';
 import { initProblems } from './ui/problems.js';
 import { initPreview } from './ui/preview.js';
+import { initExam } from './ui/exam.js';
+import { initResults } from './ui/results.js';
+import { initResume } from './ui/resume.js';
+import { store } from './store.js';
+import { toExamQuestions } from './exam.js';
+import { gradeExam } from './grader.js';
+import { buildSession, saveSession, loadSession, clearSession, describeSession } from './session.js';
 
 // route name -> screen element id
 const SCREEN_IDS = {
@@ -11,6 +18,8 @@ const SCREEN_IDS = {
   problems: 'screen-problems',
   preview: 'screen-preview',
   quiz: 'screen-quiz',
+  exam: 'screen-exam',
+  results: 'screen-results',
   export: 'screen-export',
 };
 const HOME = 'input';
@@ -27,6 +36,16 @@ let quickPaste = null;
 // The latest Quiz Pack load, in memory only (saved to storage in P3-09). Refreshing the page drops it: go home.
 let packLoaded = false;
 let packProblems = false;
+let packResult = null;   // the loadable pack result behind the Topics preview: what "Start exam" starts
+// The exam session (Quiz Pack exams): pack (answers stay here, in memory), responses, index, finished flag.
+// It is autosaved to `session` on every change (P3-03) and re-read from storage after a refresh.
+let current = null;
+
+/** The session in memory, else the saved one (e.g. after a refresh). Null when there is none. */
+function hydrate() {
+  if (!current) current = loadSession(store);
+  return current;
+}
 
 const router = createRouter({
   win: window,
@@ -37,11 +56,24 @@ const router = createRouter({
     if ((route.name === 'quiz' || route.name === 'export') && !quickPaste?.hasQuestions()) return HOME;
     if (route.name === 'preview' && !packLoaded) return HOME;
     if (route.name === 'problems' && !packProblems) return HOME;
+    // exam needs an unfinished session (a refresh resumes it from storage); results needs a finished one.
+    if (route.name === 'exam') {
+      const session = hydrate();
+      if (!session) return HOME;
+      if (session.finished) return 'results';
+    }
+    if (route.name === 'results') {
+      const session = hydrate();
+      if (!session || !session.finished) return HOME;
+    }
     return null;
   },
   onRoute: (route) => {
     showScreen(route.name);
     quickPaste.enter(route.name);
+    if (route.name === 'exam') mountExam();
+    else if (route.name === 'results') mountResults();
+    else if (route.name === HOME) resume.show(unfinishedInfo());
   },
 });
 
@@ -50,14 +82,17 @@ quickPaste = initQuickPaste(router);
 const preview = initPreview({
   onChooseAnother: () => {
     packLoaded = false;
+    packResult = null;
     preview.clear();
     router.navigate(HOME);
   },
+  onStart: () => startExam(),
 });
 const problems = initProblems({ onBack: () => router.navigate(HOME) });
 
 function resetPackScreens() {
   packLoaded = false;
+  packResult = null;
   packProblems = false;
   preview.clear();
   problems.clear();
@@ -72,6 +107,7 @@ initLoadScreen({
     resetPackScreens();
     preview.show(result, note);
     packLoaded = true;
+    packResult = result;
     router.navigate('preview');
   },
   onPackProblems: (result, note) => {
@@ -82,4 +118,70 @@ initLoadScreen({
   },
   isLoadScreenActive: () => router.current?.name === HOME,
 });
+
+// ---- Quiz Pack exam: start, autosave, resume, finish (P3-01..P3-06) ----------------------------
+const exam = initExam({
+  onChange: ({ responses, index }) => {
+    current.responses = responses;
+    current.index = index;
+    return saveSession(store, current);
+  },
+  onFinish: () => {
+    current.finished = true;
+    current.finished_at = new Date().toISOString();
+    saveSession(store, current);
+    router.navigate('results');
+  },
+  onQuit: () => {
+    if (!confirm('Start over? This discards your answers for this exam.')) return;
+    discardSession();
+    router.navigate(HOME, { replace: true });
+  },
+});
+
+const results = initResults({ onHome: () => router.navigate(HOME) });
+
+const resume = initResume({
+  onResume: () => router.navigate('exam'),
+  onDiscard: () => {
+    if (!confirm('Discard your unfinished exam? Your answers will be lost.')) return;
+    discardSession();
+    resume.show(null);
+  },
+});
+
+function discardSession() {
+  current = null;
+  clearSession(store);
+}
+
+/** Banner data for an unfinished exam, else null. */
+function unfinishedInfo() {
+  const session = hydrate();
+  return session && !session.finished ? describeSession(session) : null;
+}
+
+function startExam() {
+  if (!packResult) return;
+  const existing = hydrate();
+  if (existing && !existing.finished
+      && !confirm(`You have an unfinished exam (\u201c${existing.title || 'Untitled Quiz Pack'}\u201d). Starting this one discards it. Continue?`)) {
+    return;
+  }
+  current = buildSession(packResult.pack);
+  saveSession(store, current);
+  router.navigate('exam');
+}
+
+function mountExam() {
+  // Only question text and options go to the exam screen; the pack's answers stay in `current.pack`.
+  exam.load({ questions: toExamQuestions(current.pack), responses: current.responses, index: current.index });
+}
+
+function mountResults() {
+  const { totals } = gradeExam(current.pack, current.responses);
+  const meta = current.pack.meta || {};
+  results.show(totals, { title: current.title, subject: typeof meta.subject === 'string' ? meta.subject : '' });
+}
+
 router.start();

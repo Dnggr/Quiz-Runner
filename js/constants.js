@@ -15,6 +15,7 @@ export const STORAGE_KEYS = Object.freeze({
 });
 export const PACK_KEY_PREFIX = 'pack:';
 export const packKey = (quizId) => PACK_KEY_PREFIX + quizId;
+export const SESSION_SCHEMA_VERSION = 1;   // shape of the `session` record (P3-03); bump if it changes
 
 // ---- Overall rating (RECEIPT_SPEC §2) -----------------------------------
 // Evaluated top to bottom; first band whose `min` <= percent wins.
@@ -61,6 +62,7 @@ export const ANSWER_SKEW_MAX_SHARE = 0.40;   // warn when any correct letter is 
 export const EXPECTED_OPTION_COUNT = 4;
 export const OPTION_LETTERS = Object.freeze(['A', 'B', 'C', 'D']);
 export const MIN_QUESTIONS_PER_TOPIC_INITIAL = 3;
+export const TRUE_FALSE_VALUES = Object.freeze(['True', 'False']);   // `selected` / `answer` values of a `tf` question
 export const DIFFICULTIES = Object.freeze(['easy', 'moderate', 'challenging']);   // QUIZ_PACK_SPEC §3.2
 
 // ---- Loading (DEV_CHECKLIST P2-01) --------------------------------------
