@@ -52,11 +52,11 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 - [x] P3-04 Finish confirmation showing unanswered and unsure counts, with shortcuts "Go to first unanswered" / "Review unsure"
 - [x] P3-05 `grader.js` (pure): pack + responses → per-question outcome (`correct` / `wrong` / `skipped`, plus `unsure`) and totals
 - [x] P3-06 Results screen — Overview: score `x/N`, percentage, rating, counts
-- [ ] P3-07 Results — Review: filter chips (Wrong · Unsure · Skipped · All); each item shows question, your answer, correct answer, explanation, topic, concept
-- [ ] P3-08 Jump grid on results colored by outcome
-- [ ] P3-09 Save graded result to `history`; save pack as `pack:<quiz_id>`
-- [ ] P3-10 Answers never appear in the DOM during the exam (not even hidden), only after finish
-- [ ] P3-11 Unit tests: all correct, all wrong, all skipped, mix, True/False, unsure combinations
+- [x] P3-07 Results — Review: filter chips (Wrong · Unsure · Skipped · All); each item shows question, your answer, correct answer, explanation, topic, concept
+- [x] P3-08 Jump grid on results colored by outcome
+- [x] P3-09 Save graded result to `history`; save pack as `pack:<quiz_id>`
+- [x] P3-10 Answers never appear in the DOM during the exam (not even hidden), only after finish
+- [x] P3-11 Unit tests: all correct, all wrong, all skipped, mix, True/False, unsure combinations
 
 **Done when:** you can take the sample pack end to end and see correct scores and feedback.
 

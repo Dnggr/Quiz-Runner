@@ -10,7 +10,11 @@ import { initResume } from './ui/resume.js';
 import { store } from './store.js';
 import { toExamQuestions } from './exam.js';
 import { gradeExam } from './grader.js';
+import { buildReviewItems } from './review.js';
+import { saveFinishedExam } from './history.js';
 import { buildSession, saveSession, loadSession, clearSession, describeSession } from './session.js';
+
+const $ = (id) => document.getElementById(id);
 
 // route name -> screen element id
 const SCREEN_IDS = {
@@ -40,6 +44,8 @@ let packResult = null;   // the loadable pack result behind the Topics preview: 
 // The exam session (Quiz Pack exams): pack (answers stay here, in memory), responses, index, finished flag.
 // It is autosaved to `session` on every change (P3-03) and re-read from storage after a refresh.
 let current = null;
+// True when the result of the exam just finished could not be saved (shown as a warning on the Results screen).
+let saveFailed = false;
 
 /** The session in memory, else the saved one (e.g. after a refresh). Null when there is none. */
 function hydrate() {
@@ -74,6 +80,8 @@ const router = createRouter({
     if (route.name === 'exam') mountExam();
     else if (route.name === 'results') mountResults();
     else if (route.name === HOME) resume.show(unfinishedInfo());
+    // The Results screen is the only place with answers on it: empty it as soon as the app leaves it (P3-10).
+    if (route.name !== 'results') results.clear();
   },
 });
 
@@ -130,6 +138,9 @@ const exam = initExam({
     current.finished = true;
     current.finished_at = new Date().toISOString();
     saveSession(store, current);
+    // P3-09: the graded result goes to `history`, the pack to `pack:<quiz_id>`.
+    const saved = saveFinishedExam(store, current, gradeExam(current.pack, current.responses));
+    saveFailed = !(saved.packSaved && saved.historySaved);
     router.navigate('results');
   },
   onQuit: () => {
@@ -169,7 +180,18 @@ function startExam() {
     return;
   }
   current = buildSession(packResult.pack);
+  saveFailed = false;
   saveSession(store, current);
+  // P3-10: nothing from the pack may stay in the DOM while the exam runs, hidden screens included.
+  // The paste box can still hold pack text, the Topics preview can hold warnings about the answer letters,
+  // the error screen can quote answers, and the Results screen can hold the previous exam's review.
+  $('rawInput').value = '';
+  preview.clear();
+  problems.clear();
+  results.clear();
+  packLoaded = false;
+  packProblems = false;
+  packResult = null;
   router.navigate('exam');
 }
 
@@ -179,9 +201,14 @@ function mountExam() {
 }
 
 function mountResults() {
-  const { totals } = gradeExam(current.pack, current.responses);
+  const { totals, outcomes } = gradeExam(current.pack, current.responses);
   const meta = current.pack.meta || {};
-  results.show(totals, { title: current.title, subject: typeof meta.subject === 'string' ? meta.subject : '' });
+  results.show(totals, {
+    title: current.title,
+    subject: typeof meta.subject === 'string' ? meta.subject : '',
+    items: buildReviewItems(current.pack, outcomes),
+    saveFailed,
+  });
 }
 
 router.start();

@@ -99,3 +99,39 @@ test('gradeExam with no questions does not divide by zero', () => {
   assert.deepEqual(gradeExam({ questions: [] }, {}).totals, { total: 0, correct: 0, wrong: 0, skipped: 0, unsure: 0, percent: 0, rating: 'Needs work' });
   assert.deepEqual(gradeExam(null, null).outcomes, []);
 });
+
+test('P3-11 every outcome x unsure combination: the flag never changes the outcome, totals add up', () => {
+  // correct+sure, correct+unsure, wrong+sure, wrong+unsure, skipped+sure, skipped+unsure
+  const pack = { questions: Array.from({ length: 6 }, (_, i) => ({ number: i + 1, topic: 't1', answer: 'A' })) };
+  const responses = {
+    1: { selected: 'A', unsure: false }, 2: { selected: 'A', unsure: true },
+    3: { selected: 'B', unsure: false }, 4: { selected: 'B', unsure: true },
+    5: { selected: null, unsure: false }, 6: { selected: null, unsure: true },
+  };
+  const { outcomes, totals } = gradeExam(pack, responses);
+  assert.deepEqual(outcomes.map((o) => `${o.outcome}${o.unsure ? '+unsure' : ''}`),
+    ['correct', 'correct+unsure', 'wrong', 'wrong+unsure', 'skipped', 'skipped+unsure']);
+  assert.deepEqual(totals, { total: 6, correct: 2, wrong: 2, skipped: 2, unsure: 3, percent: 33.3, rating: 'Needs work' });
+  assert.equal(totals.correct + totals.wrong + totals.skipped, totals.total);
+});
+
+test('P3-11 True/False with answer "False": each pick and each unsure combination', () => {
+  const pack = { questions: [{ number: 1, topic: 't1', type: 'tf', answer: 'False' }] };
+  const grade = (selected, unsure) => gradeExam(pack, { 1: { selected, unsure } }).outcomes[0];
+  assert.equal(grade('False', false).outcome, 'correct');
+  assert.equal(grade('False', true).outcome, 'correct');
+  assert.equal(grade('True', false).outcome, 'wrong');
+  assert.equal(grade('True', true).outcome, 'wrong');
+  assert.equal(grade(null, false).outcome, 'skipped');
+  assert.equal(grade(null, true).outcome, 'skipped');
+  assert.equal(grade('false', false).outcome, 'wrong', 'grading is exact: answers are normalized on load, not here');
+});
+
+test('P3-11 mixed multiple-choice and True/False pack, all correct and all wrong', () => {
+  const pack = loadInput(readSample('sample-pack.json')).pack;
+  const allRight = Object.fromEntries(pack.questions.map((q) => [q.number, { selected: q.answer, unsure: false }]));
+  const flip = (q) => (q.type === 'tf' ? (q.answer === 'True' ? 'False' : 'True') : (q.answer === 'A' ? 'B' : 'A'));
+  const allWrong = Object.fromEntries(pack.questions.map((q) => [q.number, { selected: flip(q), unsure: false }]));
+  assert.deepEqual(gradeExam(pack, allRight).totals, { total: 10, correct: 10, wrong: 0, skipped: 0, unsure: 0, percent: 100, rating: 'Excellent' });
+  assert.deepEqual(gradeExam(pack, allWrong).totals, { total: 10, correct: 0, wrong: 10, skipped: 0, unsure: 0, percent: 0, rating: 'Needs work' });
+});

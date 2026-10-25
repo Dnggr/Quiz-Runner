@@ -133,16 +133,34 @@ D. To prevent devices from communicating with one another
     </div>
   </div>
 
-  <!-- SCREEN: RESULTS — Overview (P3-06) -->
+  <!-- SCREEN: RESULTS — Overview (P3-06) and Review (P3-07, P3-08). Filled only after the exam is finished. -->
   <div class="screen" id="screen-results">
     <h1 id="resTitle"></h1>
     <div class="subtitle" id="resSubject"></div>
-    <section class="score-card" aria-label="Score">
-      <div class="score-main" id="resScore"></div>
-      <div class="score-sub" id="resPercentRating"></div>
-    </section>
-    <ul class="stat-list" id="resCounts"></ul>
-    <div class="note">Question review, the topic breakdown and the receipt come in later steps.</div>
+    <div class="warn-box" id="resSaveWarn" role="status">This result couldn't be saved on this device (browser storage is unavailable, full or unreadable). It will be lost when you close this page.</div>
+
+    <div class="tabs" role="tablist" aria-label="Results sections">
+      <button class="tab" id="resTabOverview" type="button" role="tab" aria-selected="true" aria-controls="resPanelOverview">Overview</button>
+      <button class="tab" id="resTabReview" type="button" role="tab" aria-selected="false" aria-controls="resPanelReview">Review</button>
+    </div>
+
+    <div id="resPanelOverview" role="tabpanel" aria-labelledby="resTabOverview">
+      <section class="score-card" aria-label="Score">
+        <div class="score-main" id="resScore"></div>
+        <div class="score-sub" id="resPercentRating"></div>
+      </section>
+      <ul class="stat-list" id="resCounts"></ul>
+      <div class="note">The topic breakdown and the receipt come in later steps.</div>
+    </div>
+
+    <div id="resPanelReview" role="tabpanel" aria-labelledby="resTabReview" hidden>
+      <h2>Questions</h2>
+      <div class="jumpgrid" id="resJumpGrid" role="group" aria-label="Questions by outcome"></div>
+      <div class="legend">✓ correct · ✗ wrong · – skipped · ? marked not sure</div>
+      <div class="chip-bar" id="resFilters" role="group" aria-label="Filter the review"></div>
+      <div id="resReviewList" aria-live="polite"></div>
+    </div>
+
     <button class="btn btn-primary" id="resHomeBtn" type="button" style="width:100%;margin-top:24px;">Back to start</button>
   </div>
 

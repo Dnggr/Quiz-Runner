@@ -120,6 +120,8 @@ quiz-runner/
 │  ├─ packsummary.js     pure: loaded pack → data for the Topics preview
 │  ├─ exam.js            pure: response model, "Not sure" rule, progress counts, answer-free exam questions
 │  ├─ session.js         pure: in-progress exam record (build / validate / save / load via store.js)
+│  ├─ review.js          pure: graded outcomes + pack → Review items, filter chips, counts
+│  ├─ history.js         pure: save a graded exam to `history` and `pack:<quiz_id>` via store.js
 │  ├─ grader.js          pure: pack + responses → result
 │  ├─ analytics.js       pure: topic stats, status, rating, next-exam allocation, history
 │  ├─ receipt.js         pure: result → markdown + json; receipt import

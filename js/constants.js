@@ -15,6 +15,7 @@ export const STORAGE_KEYS = Object.freeze({
 });
 export const PACK_KEY_PREFIX = 'pack:';
 export const packKey = (quizId) => PACK_KEY_PREFIX + quizId;
+export const HISTORY_SCHEMA_VERSION = 1;   // shape of one `history` entry (P3-09); bump if it changes
 export const SESSION_SCHEMA_VERSION = 1;   // shape of the `session` record (P3-03); bump if it changes
 
 // ---- Overall rating (RECEIPT_SPEC §2) -----------------------------------
