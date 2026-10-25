@@ -1,0 +1,11 @@
+{
+  "name": "quiz-runner",
+  "version": "2.0.0-dev",
+  "private": true,
+  "description": "Static, mobile-first quiz app. No build step, no dependencies.",
+  "type": "module",
+  "scripts": {
+    "start": "npx serve .",
+    "test": "node --test"
+  }
+}

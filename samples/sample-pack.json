@@ -1,0 +1,216 @@
+{
+  "format": "quizrunner.quiz",
+  "version": 1,
+  "meta": {
+    "quiz_id": "sample-networks-01",
+    "title": "Computer Networks — Sample Exam",
+    "subject": "Computer Networks",
+    "quiz_type": "initial",
+    "quiz_number": 1,
+    "part": 1,
+    "total_parts": 1,
+    "total_questions": 10,
+    "generated_by": "hand-written sample",
+    "generated_on": "2026-10-25",
+    "source_note": "Written by hand for testing. Not generated from real course files.",
+    "topics": [
+      {
+        "id": "t1",
+        "name": "Network Basics",
+        "subtopics": [
+          "Purpose of networks",
+          "Devices",
+          "Network types",
+          "Topologies"
+        ]
+      },
+      {
+        "id": "t2",
+        "name": "Addressing",
+        "subtopics": [
+          "MAC address",
+          "IP address",
+          "DHCP"
+        ]
+      },
+      {
+        "id": "t3",
+        "name": "Protocols and Layers",
+        "subtopics": [
+          "TCP and UDP",
+          "OSI layers",
+          "Web protocols"
+        ]
+      }
+    ],
+    "notes": [
+      "Sample pack: 10 questions, 3 topics, one True/False question."
+    ]
+  },
+  "questions": [
+    {
+      "number": 1,
+      "type": "mc",
+      "topic": "t1",
+      "concept": "Purpose of a network",
+      "difficulty": "easy",
+      "skill": "function",
+      "question": "A small office wants its computers to use one shared printer and exchange files. What is the main reason a network helps here?",
+      "options": {
+        "A": "It makes each computer physically larger",
+        "B": "It lets devices communicate and share resources",
+        "C": "It removes the need for operating systems",
+        "D": "It stops devices from talking to each other"
+      },
+      "answer": "B",
+      "explanation": "A network exists so devices can communicate and share resources like printers and files. The other options describe things a network does not do."
+    },
+    {
+      "number": 2,
+      "type": "mc",
+      "topic": "t1",
+      "concept": "Switch forwards by MAC address",
+      "difficulty": "moderate",
+      "skill": "function",
+      "question": "Which device forwards frames inside a local network by looking at MAC addresses?",
+      "options": {
+        "A": "A hub, which repeats every frame out of all its ports",
+        "B": "A modem, which links the office to the internet provider",
+        "C": "A router, which forwards packets between different networks",
+        "D": "A switch, which sends frames only to the port of the destination MAC"
+      },
+      "answer": "D",
+      "explanation": "A switch learns which MAC address sits behind each port and sends frames only there. A hub repeats frames to every port, and a router works between networks."
+    },
+    {
+      "number": 3,
+      "type": "mc",
+      "topic": "t1",
+      "concept": "LAN vs WAN",
+      "difficulty": "moderate",
+      "skill": "comparison",
+      "question": "A company links its offices in two different cities. Which kind of network covers this distance?",
+      "options": {
+        "A": "A WAN, which spans large geographic areas",
+        "B": "A LAN, which stays within one building or campus",
+        "C": "A PAN, which connects devices within a few meters of one person",
+        "D": "A WLAN, which connects devices wirelessly in a local area"
+      },
+      "answer": "A",
+      "explanation": "WAN means wide area network, built to link sites that are far apart. A LAN stays inside one building or campus."
+    },
+    {
+      "number": 4,
+      "type": "mc",
+      "topic": "t1",
+      "concept": "Star topology failure",
+      "difficulty": "challenging",
+      "skill": "structure",
+      "question": "In a star topology, what happens to the rest of the network if one cable between a computer and the central switch is cut?",
+      "options": {
+        "A": "All computers lose connection because the cable is shared by everyone",
+        "B": "The network keeps working only if the cut computer was first in the chain",
+        "C": "Only that computer loses connection and the others keep working",
+        "D": "The central switch reroutes the signal through a neighboring computer"
+      },
+      "answer": "C",
+      "explanation": "Each computer in a star has its own cable to the switch, so one cut affects only that computer. A shared single cable is how a bus topology works."
+    },
+    {
+      "number": 5,
+      "type": "mc",
+      "topic": "t2",
+      "concept": "MAC vs IP address",
+      "difficulty": "moderate",
+      "skill": "comparison",
+      "question": "Which statement best separates a MAC address from an IP address?",
+      "options": {
+        "A": "A MAC address is written as four numbers separated by dots",
+        "B": "A MAC address identifies the network card, while an IP address identifies the device's place on a network",
+        "C": "An IP address is burned into the network card at the factory",
+        "D": "Both identify a device in exactly the same way"
+      },
+      "answer": "B",
+      "explanation": "The MAC address belongs to the network card. The IP address tells where the device sits on a network. Option C swaps the two."
+    },
+    {
+      "number": 6,
+      "type": "tf",
+      "topic": "t2",
+      "concept": "Device can have MAC and IP",
+      "difficulty": "easy",
+      "skill": "definition",
+      "question": "A device can have both a MAC address and an IP address.",
+      "answer": "True",
+      "explanation": "They work at different levels, so one device normally has both."
+    },
+    {
+      "number": 7,
+      "type": "mc",
+      "topic": "t2",
+      "concept": "DHCP address assignment",
+      "difficulty": "challenging",
+      "skill": "process",
+      "question": "A laptop joins a home Wi-Fi network and receives the address 192.168.1.25 automatically. Which service most likely handed it out?",
+      "options": {
+        "A": "DNS, which turns names into addresses",
+        "B": "NAT, which translates private addresses to a public one",
+        "C": "DHCP, which hands out IP settings automatically",
+        "D": "ARP, which maps an IP address to a MAC address"
+      },
+      "answer": "C",
+      "explanation": "DHCP gives devices their IP settings when they join a network. DNS looks up names, NAT translates addresses, and ARP maps IP to MAC."
+    },
+    {
+      "number": 8,
+      "type": "mc",
+      "topic": "t3",
+      "concept": "TCP vs UDP choice",
+      "difficulty": "challenging",
+      "skill": "application",
+      "question": "A video call app cares more about speed than about perfect delivery. Which transport protocol fits best?",
+      "options": {
+        "A": "UDP, because it sends data without waiting for acknowledgments",
+        "B": "TCP, because it guarantees ordered and reliable delivery",
+        "C": "ICMP, because it carries web pages quickly",
+        "D": "HTTP, because it is the transport protocol for all web traffic"
+      },
+      "answer": "A",
+      "explanation": "UDP skips acknowledgments, so live audio and video arrive with less delay. TCP is reliable but waits to resend lost data. HTTP is an application protocol, not a transport one."
+    },
+    {
+      "number": 9,
+      "type": "mc",
+      "topic": "t3",
+      "concept": "OSI layer order",
+      "difficulty": "moderate",
+      "skill": "sequence",
+      "question": "Which list shows the OSI layers in order from layer 1 upward, for the first four layers?",
+      "options": {
+        "A": "Network, Physical, Data Link, Transport",
+        "B": "Physical, Network, Data Link, Transport",
+        "C": "Data Link, Physical, Network, Transport",
+        "D": "Physical, Data Link, Network, Transport"
+      },
+      "answer": "D",
+      "explanation": "The order is Physical (1), Data Link (2), Network (3), Transport (4). The other lists swap neighboring layers."
+    },
+    {
+      "number": 10,
+      "type": "mc",
+      "topic": "t3",
+      "concept": "HTTP purpose",
+      "difficulty": "easy",
+      "skill": "function",
+      "question": "Which protocol is mainly used by a browser to request and receive web pages?",
+      "options": {
+        "A": "FTP, for transferring files between hosts",
+        "B": "HTTP, for requesting and delivering web pages",
+        "C": "SMTP, for sending email between servers",
+        "D": "SSH, for secure remote login"
+      },
+      "answer": "B",
+      "explanation": "HTTP is the protocol browsers use to ask a server for a web page and get it back. FTP, SMTP and SSH serve other jobs."
+    }
+  ]
+}

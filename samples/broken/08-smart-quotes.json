@@ -1,0 +1,10 @@
+{
+  “format”: “quizrunner.quiz”,
+  “version”: 1,
+  “meta”: {“quiz_id”: “broken-base-01”, “title”: “Broken sample base”, “subject”: “Computer Networks”, “quiz_type”: “custom”, “total_questions”: 3, “topics”: [{“id”: “t1”, “name”: “Network Basics”, “subtopics”: [“Devices”]}, {“id”: “t2”, “name”: “Addressing”, “subtopics”: [“MAC address”, “IP address”]}], “notes”: []},
+  “questions”: [
+    {“number”: 1, “type”: “mc”, “topic”: “t1”, “concept”: “Purpose of a network”, “difficulty”: “easy”, “skill”: “definition”, “question”: “What is the main purpose of a network?”, “options”: {“A”: “Make computers larger”, “B”: “Let devices share resources”, “C”: “Remove operating systems”, “D”: “Stop devices talking”}, “answer”: “B”, “explanation”: “A network lets devices communicate and share resources.”},
+    {“number”: 2, “type”: “mc”, “topic”: “t2”, “concept”: “MAC address meaning”, “difficulty”: “easy”, “skill”: “definition”, “question”: “What does a MAC address identify?”, “options”: {“A”: “The network card”, “B”: “The website”, “C”: “The file system”, “D”: “The monitor”}, “answer”: “A”, “explanation”: “A MAC address belongs to the network card.”},
+    {“number”: 3, “type”: “mc”, “topic”: “t2”, “concept”: “IP address meaning”, “difficulty”: “easy”, “skill”: “definition”, “question”: “What does an IP address identify?”, “options”: {“A”: “The keyboard layout”, “B”: “The screen size”, “C”: “The password”, “D”: “The device's place on a network”}, “answer”: “D”, “explanation”: “An IP address tells where the device sits on a network.”}
+  ]
+}

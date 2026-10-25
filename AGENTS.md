@@ -52,9 +52,9 @@ If code and a spec disagree, the spec wins unless the owner approves a change. C
 - When something in the specs is ambiguous or missing, ask the owner rather than guessing. Record the decision in `docs/PLAN.md` §5.
 - Don't refactor unrelated code or restyle the UI as a side effect.
 
-## Commands (proposed)
-- Run locally: `npx serve .` (ES modules do not work from `file://`).
-- Tests: `node --test tests/`
+## Commands
+- Run locally: `npx serve .` or `npm start` (ES modules do not work from `file://`).
+- Tests: `npm test` (runs `node --test`; a `tests/` directory argument fails on Node 22)
 - Deploy: push to the main branch; Vercel builds a preview per branch.
 - Rollback: redeploy the `v1-legacy` git tag.
 
