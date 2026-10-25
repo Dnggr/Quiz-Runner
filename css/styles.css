@@ -243,6 +243,24 @@ pre#exportBox{
   display:none;
 }
 
+.error-box ul,.ok-box ul{margin:6px 0 0;padding-left:20px;}
+.error-box li,.ok-box li{margin:2px 0;}
+.ok-box{
+  background:#17301f;
+  border:1px solid #2c5a3b;
+  color:#8ff0b0;
+  padding:12px 14px;
+  border-radius:10px;
+  font-size:13px;
+  margin-top:14px;
+  display:none;
+}
+.ok-box .warn-title{color:#f5b942;margin-top:8px;}
+/* Drag-and-drop feedback (a text hint, so it never relies on color alone) */
+.drop-hint{display:none;margin-top:10px;text-align:center;font-size:14px;color:var(--accent);}
+#screen-input.drag-over textarea{border-color:var(--accent);background:#1f2030;}
+#screen-input.drag-over .drop-hint{display:block;}
+
 /* --- Small phone tweaks --- */
 @media (max-width: 420px){
   .wrap{padding-left:14px;padding-right:14px;}

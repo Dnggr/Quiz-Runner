@@ -1,6 +1,7 @@
 // main.js — bootstrap + screen switching. Everything else lives in its own module.
 import { createRouter } from './router.js';
 import { initQuickPaste } from './ui/quickpaste.js';
+import { initLoadScreen } from './ui/loadpack.js';
 
 // route name -> screen element id
 const SCREEN_IDS = {
@@ -33,4 +34,8 @@ const router = createRouter({
 });
 
 quickPaste = initQuickPaste(router);
+initLoadScreen({
+  startLegacy: quickPaste.startLegacy,
+  isLoadScreenActive: () => router.current?.name === HOME,
+});
 router.start();

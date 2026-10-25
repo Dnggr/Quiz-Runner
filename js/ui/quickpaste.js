@@ -2,7 +2,6 @@
 // DOM only. Parsing lives in loader.js, export text in receipt.js.
 // Kept as ONE file in Phase 1 because the three screens share state and are replaced together
 // by the real Load / Exam / Results screens in Phases 2-3.
-import { parseLegacyText } from '../loader.js';
 import {
   LEGACY_UNSURE,
   summarizeLegacyAnswers,
@@ -14,27 +13,18 @@ const $ = (id) => document.getElementById(id);
 
 /**
  * @param {{ navigate: (name: string, opts?: { replace?: boolean }) => void }} router
- * @returns {{ hasQuestions: () => boolean, enter: (screenName: string) => void }}
+ * @returns {{ startLegacy: (parsed: object[]) => void, hasQuestions: () => boolean, enter: (screenName: string) => void }}
  */
 export function initQuickPaste(router) {
   let questions = [];
   let answers = {};
   let currentIndex = 0;
 
-  // ---- Screen 1: paste ---------------------------------------------------
-  function loadQuestions() {
-    const raw = $('rawInput').value;
-    const errBox = $('parseError');
-    errBox.style.display = 'none';
-
-    const parsed = parseLegacyText(raw);
-    if (parsed.length === 0) {
-      errBox.textContent =
-        "Couldn't find any questions in that text. Make sure each question starts with a number like \"1.\" and options (if any) start with \"A.\", \"B.\", etc.";
-      errBox.style.display = 'block';
-      return;
-    }
-
+  // ---- Screen 1: start from legacy text ------------------------------------
+  // Reading the paste box / file and choosing legacy vs Quiz Pack now happens in ui/loadpack.js.
+  // This is the "Quick Paste (answers only)" entry: `loadInput` has already decided the text is legacy.
+  /** @param {object[]} parsed  output of parseLegacyText */
+  function startLegacy(parsed) {
     questions = parsed;
     answers = {};
     currentIndex = 0;
@@ -192,7 +182,6 @@ export function initQuickPaste(router) {
   }
 
   // ---- Wiring ------------------------------------------------------------
-  $('loadBtn').addEventListener('click', loadQuestions);
   $('resetBtn').addEventListener('click', confirmReset);
   $('prevBtn').addEventListener('click', goPrev);
   $('unsureBtn').addEventListener('click', markUnsure);
@@ -203,6 +192,7 @@ export function initQuickPaste(router) {
   $('newQuizBtn').addEventListener('click', confirmReset);
 
   return {
+    startLegacy,
     hasQuestions: () => questions.length > 0,
     /** Called by main.js each time a screen becomes visible. */
     enter(screenName) {

@@ -12,32 +12,32 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 - [ ] P0-02 Read and approve `RECEIPT_SPEC.md` (thresholds, rating bands, allocation rule)
 - [ ] P0-03 Read and approve `PROMPT_TEMPLATES.md` wording
 - [ ] P0-04 Git tag the current app as `v1-legacy` (rollback point)
-- [ ] P0-05 Create `samples/sample-pack.json` (10 questions, 3 topics, includes one True/False)
+- [x] P0-05 Create `samples/sample-pack.json` (10 questions, 3 topics, includes one True/False)
 - [ ] P0-06 Generate `samples/sample-pack-130.json` from real course files with an AI (performance test + real-world format check)
-- [ ] P0-07 Create `samples/broken/` with one file per failure: code-fenced JSON, trailing comma, truncated output, missing `answer`, answer letter not in options, duplicate question numbers, unknown topic id, smart quotes as delimiters, BOM at start
-- [ ] P0-08 Create `samples/sample-receipt.md` by hand from the template in `RECEIPT_SPEC.md`
+- [x] P0-07 Create `samples/broken/` with one file per failure: code-fenced JSON, trailing comma, truncated output, missing `answer`, answer letter not in options, duplicate question numbers, unknown topic id, smart quotes as delimiters, BOM at start
+- [x] P0-08 Create `samples/sample-receipt.md` by hand from the template in `RECEIPT_SPEC.md`
 
 **Done when:** all three docs are approved and the samples exist.
 
 ## Phase 1 — Foundation (no visible change)
-- [ ] P1-01 Split `index.html` into `css/styles.css` and `js/*.js` ES modules (see `PLAN.md` §8)
-- [ ] P1-02 Verify legacy flow is identical (paste text → answer → export `1. B` list)
-- [ ] P1-03 `constants.js`: `SPEC_VERSION`, `APP_VERSION`, thresholds, storage keys
-- [ ] P1-04 `store.js`: namespaced keys (`qr:v1:`), try/catch on every access, in-memory fallback if `localStorage` is unavailable
-- [ ] P1-05 Simple screen router (hash-based so the phone's back button works)
-- [ ] P1-06 Test harness with `node --test` for pure modules
-- [ ] P1-07 Local dev command documented (`npx serve .`) — ES modules don't run from `file://`
+- [x] P1-01 Split `index.html` into `css/styles.css` and `js/*.js` ES modules (see `PLAN.md` §8)
+- [x] P1-02 Verify legacy flow is identical (paste text → answer → export `1. B` list)
+- [x] P1-03 `constants.js`: `SPEC_VERSION`, `APP_VERSION`, thresholds, storage keys
+- [x] P1-04 `store.js`: namespaced keys (`qr:v1:`), try/catch on every access, in-memory fallback if `localStorage` is unavailable
+- [x] P1-05 Simple screen router (hash-based so the phone's back button works)
+- [x] P1-06 Test harness with `node --test` for pure modules
+- [x] P1-07 Local dev command documented (`npx serve .`) — ES modules don't run from `file://`
 
 **Done when:** the app behaves exactly like today, but from modules, and the tests run.
 
 ## Phase 2 — Quiz Pack in
 - [ ] P2-01 Load by paste, file picker, and drag-and-drop (`.json`, `.txt`, `.md`)
-- [ ] P2-02 `loader.js` pipeline: strip BOM → strip code fences / surrounding prose → extract first top-level `{…}` → `JSON.parse` → on failure remove trailing commas and retry → else report error with position
-- [ ] P2-03 Detect legacy plain-text input and route to "Quick Paste (answers only)" mode (today's behaviour)
-- [ ] P2-04 `validator.js` with **errors** (block) and **warnings** (allow):
+- [x] P2-02 `loader.js` pipeline: strip BOM → strip code fences / surrounding prose → extract first top-level `{…}` → `JSON.parse` → on failure remove trailing commas and retry → else report error with position
+- [x] P2-03 Detect legacy plain-text input and route to "Quick Paste (answers only)" mode (today's behaviour)
+- [x] P2-04 `validator.js` with **errors** (block) and **warnings** (allow):
   - errors: missing `questions`, missing `question` / `answer` / `topic`, answer not in options, duplicate `number`, topic id not in `meta.topics`
   - warnings: count ≠ `meta.total_questions`, missing `explanation`, answer letters badly skewed (any letter > 40%), option count ≠ 4, missing `concept`
-- [ ] P2-05 Normalize on load: uppercase letters, trim whitespace, infer `type` if missing, default `part`/`total_parts`
+- [x] P2-05 Normalize on load: uppercase letters, trim whitespace, infer `type` if missing, default `part`/`total_parts`
 - [ ] P2-06 Friendly error screen listing problems by question number
 - [ ] P2-07 Topics preview screen (title, topics + subtopics, count, difficulty mix, `meta.notes`)
 - [ ] P2-08 Warn (don't block) if pack `version` differs from `SPEC_VERSION`

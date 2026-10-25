@@ -62,6 +62,10 @@ export const EXPECTED_OPTION_COUNT = 4;
 export const OPTION_LETTERS = Object.freeze(['A', 'B', 'C', 'D']);
 export const MIN_QUESTIONS_PER_TOPIC_INITIAL = 3;
 
+// ---- Loading (DEV_CHECKLIST P2-01) --------------------------------------
+export const ACCEPTED_FILE_EXTENSIONS = Object.freeze(['.json', '.txt', '.md']);
+export const LOAD_STATUS_MAX_LISTED = 10;   // interim load-screen list; replaced by the error screen in P2-06
+
 // ---- Prompt Builder defaults (PROMPT_TEMPLATES, "Builder options") -------
 export const DEFAULT_COUNTS = Object.freeze({ initial: 130, targeted: 40, retention: 12 });
 export const DEFAULT_TOPIC_RANGE = Object.freeze({ min: 6, max: 15 });

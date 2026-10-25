@@ -16,7 +16,7 @@
   <!-- SCREEN 1: PASTE QUESTIONS -->
   <div class="screen active" id="screen-input">
     <h1>Quiz Runner</h1>
-    <div class="subtitle">Paste the question set below, then load it to start answering. Works with numbered questions like <code>1.</code> or <code>**1.**</code>, multiple-choice options <code>A.</code>–<code>D.</code>, and True/False questions.</div>
+    <div class="subtitle">Paste a Quiz Pack (JSON) or a plain question set below, or choose or drop a <code>.json</code>, <code>.txt</code> or <code>.md</code> file. Plain text works with numbered questions like <code>1.</code> or <code>**1.**</code>, multiple-choice options <code>A.</code>–<code>D.</code>, and True/False questions.</div>
     <textarea id="rawInput" placeholder="Paste your questions here, e.g.
 
 1. What is the primary purpose of a computer network?
@@ -26,8 +26,12 @@ C. To eliminate the need for operating systems
 D. To prevent devices from communicating with one another
 
 37. True or False: A device can have both a MAC address and an IP address."></textarea>
-    <div class="error-box" id="parseError"></div>
+    <div class="drop-hint" id="dropHint">Drop the file to load it</div>
+    <div class="error-box" id="parseError" role="alert"></div>
+    <div class="ok-box" id="loadStatus" role="status"></div>
     <button class="btn btn-primary" id="loadBtn" style="width:100%;margin-top:16px;">Load Questions</button>
+    <button class="btn" id="fileBtn" style="width:100%;margin-top:10px;">Choose a file…</button>
+    <input type="file" id="fileInput" accept=".json,.txt,.md,application/json,text/plain,text/markdown" hidden>
   </div>
 
   <!-- SCREEN 2: QUIZ -->

@@ -32,12 +32,12 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 
 ## Phase 2 — Quiz Pack in
 - [ ] P2-01 Load by paste, file picker, and drag-and-drop (`.json`, `.txt`, `.md`)
-- [ ] P2-02 `loader.js` pipeline: strip BOM → strip code fences / surrounding prose → extract first top-level `{…}` → `JSON.parse` → on failure remove trailing commas and retry → else report error with position
-- [ ] P2-03 Detect legacy plain-text input and route to "Quick Paste (answers only)" mode (today's behaviour)
-- [ ] P2-04 `validator.js` with **errors** (block) and **warnings** (allow):
+- [x] P2-02 `loader.js` pipeline: strip BOM → strip code fences / surrounding prose → extract first top-level `{…}` → `JSON.parse` → on failure remove trailing commas and retry → else report error with position
+- [x] P2-03 Detect legacy plain-text input and route to "Quick Paste (answers only)" mode (today's behaviour)
+- [x] P2-04 `validator.js` with **errors** (block) and **warnings** (allow):
   - errors: missing `questions`, missing `question` / `answer` / `topic`, answer not in options, duplicate `number`, topic id not in `meta.topics`
   - warnings: count ≠ `meta.total_questions`, missing `explanation`, answer letters badly skewed (any letter > 40%), option count ≠ 4, missing `concept`
-- [ ] P2-05 Normalize on load: uppercase letters, trim whitespace, infer `type` if missing, default `part`/`total_parts`
+- [x] P2-05 Normalize on load: uppercase letters, trim whitespace, infer `type` if missing, default `part`/`total_parts`
 - [ ] P2-06 Friendly error screen listing problems by question number
 - [ ] P2-07 Topics preview screen (title, topics + subtopics, count, difficulty mix, `meta.notes`)
 - [ ] P2-08 Warn (don't block) if pack `version` differs from `SPEC_VERSION`
