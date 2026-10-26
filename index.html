@@ -133,7 +133,7 @@ D. To prevent devices from communicating with one another
     </div>
   </div>
 
-  <!-- SCREEN: RESULTS — Overview (P3-06) and Review (P3-07, P3-08). Filled only after the exam is finished. -->
+  <!-- SCREEN: RESULTS — Overview (P3-06), Topics and Next steps (P4-07), Review (P3-07, P3-08). Filled only after the exam is finished. -->
   <div class="screen" id="screen-results">
     <h1 id="resTitle"></h1>
     <div class="subtitle" id="resSubject"></div>
@@ -141,7 +141,9 @@ D. To prevent devices from communicating with one another
 
     <div class="tabs" role="tablist" aria-label="Results sections">
       <button class="tab" id="resTabOverview" type="button" role="tab" aria-selected="true" aria-controls="resPanelOverview">Overview</button>
+      <button class="tab" id="resTabTopics" type="button" role="tab" aria-selected="false" aria-controls="resPanelTopics">Topics</button>
       <button class="tab" id="resTabReview" type="button" role="tab" aria-selected="false" aria-controls="resPanelReview">Review</button>
+      <button class="tab" id="resTabNext" type="button" role="tab" aria-selected="false" aria-controls="resPanelNext">Next steps</button>
     </div>
 
     <div id="resPanelOverview" role="tabpanel" aria-labelledby="resTabOverview">
@@ -150,7 +152,12 @@ D. To prevent devices from communicating with one another
         <div class="score-sub" id="resPercentRating"></div>
       </section>
       <ul class="stat-list" id="resCounts"></ul>
-      <div class="note">The topic breakdown and the receipt come in later steps.</div>
+    </div>
+
+    <div id="resPanelTopics" role="tabpanel" aria-labelledby="resTabTopics" hidden>
+      <h2>Topics</h2>
+      <div id="resTopicList"></div>
+      <div class="note">One missed question never makes a topic weak. A topic needs repeated misses, and answers marked “not sure” keep a topic from counting as strong.</div>
     </div>
 
     <div id="resPanelReview" role="tabpanel" aria-labelledby="resTabReview" hidden>
@@ -161,7 +168,38 @@ D. To prevent devices from communicating with one another
       <div id="resReviewList" aria-live="polite"></div>
     </div>
 
-    <button class="btn btn-primary" id="resHomeBtn" type="button" style="width:100%;margin-top:24px;">Back to start</button>
+    <div id="resPanelNext" role="tabpanel" aria-labelledby="resTabNext" hidden>
+      <div id="resNextSteps"></div>
+    </div>
+
+    <button class="btn btn-primary" id="resReceiptBtn" type="button" style="width:100%;margin-top:24px;">Export receipt</button>
+    <button class="btn" id="resHomeBtn" type="button" style="width:100%;margin-top:10px;">Back to start</button>
+  </div>
+
+  <!-- SCREEN: EXPORT RECEIPT (P4-09, P4-10). Holds the answers and explanations, so it is emptied whenever the app leaves it. -->
+  <div class="screen" id="screen-receipt">
+    <h1>Export receipt</h1>
+    <div class="subtitle" id="rcSubtitle"></div>
+
+    <fieldset class="toggle-group">
+      <legend>Include in the receipt</legend>
+      <label class="toggle"><input type="checkbox" id="rcOptMissed" checked><span><span class="toggle-title">Missed-question detail</span><span class="toggle-help">Each missed question with your answer, the correct one and why</span></span></label>
+      <label class="toggle"><input type="checkbox" id="rcOptHistory" checked><span><span class="toggle-title">Cumulative history</span><span class="toggle-help">Your earlier exams, priority topics and what improved</span></span></label>
+      <label class="toggle"><input type="checkbox" id="rcOptConcepts" checked><span><span class="toggle-title">Covered concepts</span><span class="toggle-help">So the next quiz does not repeat them</span></span></label>
+      <label class="toggle"><input type="checkbox" id="rcOptFormat" checked><span><span class="toggle-title">Next-quiz format instructions</span><span class="toggle-help">Lets any AI write the next quiz in a format this app can load</span></span></label>
+    </fieldset>
+
+    <div class="size-line" id="rcSize" role="status" aria-live="polite"></div>
+    <pre id="rcPreview" tabindex="0" aria-label="Receipt preview"></pre>
+
+    <div class="row">
+      <button class="btn btn-primary" id="rcCopyBtn" type="button">Copy</button>
+      <button class="btn" id="rcDownloadMdBtn" type="button">Download .md</button>
+      <button class="btn" id="rcDownloadJsonBtn" type="button">Download .json</button>
+    </div>
+    <div class="copied-msg" id="rcMsg" role="status" aria-live="polite"></div>
+    <button class="btn" id="rcBackBtn" type="button" style="width:100%;margin-top:6px;">Back to results</button>
+    <div class="note">Paste the receipt into any AI chat. It explains itself, so you can ask it to explain your mistakes, make a study plan, or write your next quiz. The .json file is the same data for re-importing into this app.</div>
   </div>
 
   <!-- SCREEN 3: EXPORT -->

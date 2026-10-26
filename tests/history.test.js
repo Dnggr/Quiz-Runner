@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildHistoryEntry, readHistory, saveFinishedExam } from '../js/history.js';
+import { buildHistoryEntry, readHistory, saveFinishedExam, loadSnapshots } from '../js/history.js';
 import { buildSession } from '../js/session.js';
 import { gradeExam } from '../js/grader.js';
 import { createStore } from '../js/store.js';
@@ -91,4 +91,41 @@ test('P3-09 readHistory: nothing stored is an empty, healthy history; junk entri
   const storage = fakeStorage();
   storage.setItem(STORAGE_PREFIX + STORAGE_KEYS.history, JSON.stringify([null, 5, { id: 'x' }]));
   assert.deepEqual(readHistory(createStore({ storage })), { entries: [{ id: 'x' }], corrupt: false });
+});
+
+test('P4-09 loadSnapshots: stored exams become snapshots with topic status rebuilt from the stored pack', () => {
+  const storage = fakeStorage();
+  const store = createStore({ storage });
+  const s = finished();
+  saveFinishedExam(store, s, gradeExam(s.pack, s.responses));
+  const [snap] = loadSnapshots(store);
+  assert.equal(snap.id, 'test-pack-01@2026-10-25T10:00:00.000Z');
+  assert.deepEqual([snap.correct, snap.total, snap.percent], [1, 4, 25]);
+  // Q1 correct, Q2 wrong (topic One: 1 miss in 2 questions), Q3 and Q4 skipped (topic Two: 2 misses in 2 questions)
+  assert.deepEqual(snap.topics.map((t) => [t.name, t.status]), [['One', 'watch'], ['Two', 'weak']]);
+});
+
+test('P4-09 loadSnapshots: no history gives []; an exam whose pack is gone keeps its totals but has no topics; corrupt history gives []', () => {
+  const storage = fakeStorage();
+  const store = createStore({ storage });
+  assert.deepEqual(loadSnapshots(store), []);
+  const s = finished();
+  saveFinishedExam(store, s, gradeExam(s.pack, s.responses));
+  store.remove(packKey('test-pack-01'));
+  const [snap] = loadSnapshots(store);
+  assert.deepEqual([snap.percent, snap.topics], [25, []]);
+  store.set(STORAGE_KEYS.history, { not: 'an array' });
+  assert.deepEqual(loadSnapshots(store), []);
+  store.set(STORAGE_KEYS.history, [null, 5, { quiz_id: 'x' }]);
+  assert.deepEqual(loadSnapshots(store), []);
+});
+
+test('P4-09 loadSnapshots never writes to storage', () => {
+  const storage = fakeStorage();
+  const store = createStore({ storage });
+  const s = finished();
+  saveFinishedExam(store, s, gradeExam(s.pack, s.responses));
+  const before = JSON.stringify([...storage.data]);
+  loadSnapshots(store);
+  assert.equal(JSON.stringify([...storage.data]), before);
 });

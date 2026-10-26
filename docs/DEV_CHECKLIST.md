@@ -61,18 +61,18 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 **Done when:** you can take the sample pack end to end and see correct scores and feedback.
 
 ## Phase 4 — Analytics and Receipt
-- [ ] P4-01 `analytics.js` topic stats: total, correct, wrong, skipped, unsure, shaky (correct + unsure), accuracy
-- [ ] P4-02 Topic status: `weak` · `developing` · `watch` · `strong` · `insufficient` (rules in `RECEIPT_SPEC.md` §3)
-- [ ] P4-03 Overall rating from percentage bands
-- [ ] P4-04 Split misses into **gaps** (skipped / unsure) and **misconceptions** (wrong and confident)
-- [ ] P4-05 Rank weaknesses (misses desc, then accuracy asc); list strengths
-- [ ] P4-06 Next-exam recommendation (allocation algorithm in `RECEIPT_SPEC.md` §6)
-- [ ] P4-07 Results tabs: Topics (bars + status chips) and Next steps (what to study, what to take next)
-- [ ] P4-08 `receipt.js`: build Markdown receipt and JSON receipt
-- [ ] P4-09 Export screen toggles: missed-question detail · cumulative history · covered concepts · next-quiz format instructions (default on)
-- [ ] P4-10 Copy / Download `.md` / Download `.json`; show approximate size ("≈ 4k tokens" = chars ÷ 4)
-- [ ] P4-11 Keep legacy "answers only" export for Quick Paste mode
-- [ ] P4-12 Golden-file test: sample pack + fixed responses → exact expected receipt text
+- [x] P4-01 `analytics.js` topic stats: total, correct, wrong, skipped, unsure, shaky (correct + unsure), accuracy
+- [x] P4-02 Topic status: `weak` · `developing` · `watch` · `strong` · `insufficient` (rules in `RECEIPT_SPEC.md` §3)
+- [x] P4-03 Overall rating from percentage bands
+- [x] P4-04 Split misses into **gaps** (skipped / unsure) and **misconceptions** (wrong and confident)
+- [x] P4-05 Rank weaknesses (misses desc, then accuracy asc); list strengths
+- [x] P4-06 Next-exam recommendation (allocation algorithm in `RECEIPT_SPEC.md` §6)
+- [x] P4-07 Results tabs: Topics (bars + status chips) and Next steps (what to study, what to take next)
+- [x] P4-08 `receipt.js`: build Markdown receipt and JSON receipt
+- [x] P4-09 Export screen toggles: missed-question detail · cumulative history · covered concepts · next-quiz format instructions (default on)
+- [x] P4-10 Copy / Download `.md` / Download `.json`; show approximate size ("≈ 4k tokens" = chars ÷ 4)
+- [x] P4-11 Keep legacy "answers only" export for Quick Paste mode
+- [x] P4-12 Golden-file test: sample pack + fixed responses → exact expected receipt text
 
 **Done when:** a receipt pasted into Claude and ChatGPT lets them explain your mistakes and propose the next quiz without extra context.
 

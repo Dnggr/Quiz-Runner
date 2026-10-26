@@ -4,6 +4,7 @@
 // A history entry is identified by quiz_id + the time that attempt started, so saving the same attempt twice
 // replaces it instead of adding a duplicate. Retaking a quiz adds a new entry.
 import { STORAGE_KEYS, HISTORY_SCHEMA_VERSION, APP_VERSION, SPEC_VERSION, packKey } from './constants.js';
+import { snapshotFromHistoryEntry } from './analytics.js';
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -68,4 +69,17 @@ export function saveFinishedExam(store, session, graded) {
   const at = entries.findIndex((e) => e.id === entry.id);
   const next = at === -1 ? [...entries, entry] : entries.map((e, i) => (i === at ? entry : e));
   return { packSaved, historySaved: store.set(STORAGE_KEYS.history, next) };
+}
+
+/**
+ * Stored exams as snapshots for the receipt's History section (P4-09): totals plus per-topic status, the latter
+ * rebuilt from the stored outcomes and `pack:<quiz_id>`. An exam whose pack is gone still appears, without topics.
+ * Unusable entries are skipped. Reads only; never writes.
+ * @returns {import('./analytics.js').ExamSnapshot[]}  in stored order (oldest first)
+ */
+export function loadSnapshots(store) {
+  const { entries } = readHistory(store);
+  return entries
+    .map((e) => snapshotFromHistoryEntry(e, typeof e.quiz_id === 'string' ? store.get(packKey(e.quiz_id), null) : null))
+    .filter((s) => s !== null);
 }

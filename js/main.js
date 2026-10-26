@@ -6,12 +6,15 @@ import { initProblems } from './ui/problems.js';
 import { initPreview } from './ui/preview.js';
 import { initExam } from './ui/exam.js';
 import { initResults } from './ui/results.js';
+import { initReceiptScreen } from './ui/receiptscreen.js';
 import { initResume } from './ui/resume.js';
 import { store } from './store.js';
 import { toExamQuestions } from './exam.js';
 import { gradeExam } from './grader.js';
+import { analyzeExam } from './analytics.js';
 import { buildReviewItems } from './review.js';
-import { saveFinishedExam } from './history.js';
+import { buildReceipt } from './receipt.js';
+import { saveFinishedExam, loadSnapshots } from './history.js';
 import { buildSession, saveSession, loadSession, clearSession, describeSession } from './session.js';
 
 const $ = (id) => document.getElementById(id);
@@ -24,6 +27,7 @@ const SCREEN_IDS = {
   quiz: 'screen-quiz',
   exam: 'screen-exam',
   results: 'screen-results',
+  receipt: 'screen-receipt',
   export: 'screen-export',
 };
 const HOME = 'input';
@@ -68,7 +72,8 @@ const router = createRouter({
       if (!session) return HOME;
       if (session.finished) return 'results';
     }
-    if (route.name === 'results') {
+    // results and the receipt export both need a finished exam.
+    if (route.name === 'results' || route.name === 'receipt') {
       const session = hydrate();
       if (!session || !session.finished) return HOME;
     }
@@ -79,9 +84,12 @@ const router = createRouter({
     quickPaste.enter(route.name);
     if (route.name === 'exam') mountExam();
     else if (route.name === 'results') mountResults();
+    else if (route.name === 'receipt') mountReceipt();
     else if (route.name === HOME) resume.show(unfinishedInfo());
     // The Results screen is the only place with answers on it: empty it as soon as the app leaves it (P3-10).
     if (route.name !== 'results') results.clear();
+    // The receipt export holds answers and explanations too (P4-09): same rule.
+    if (route.name !== 'receipt') receiptScreen.clear();
   },
 });
 
@@ -150,7 +158,11 @@ const exam = initExam({
   },
 });
 
-const results = initResults({ onHome: () => router.navigate(HOME) });
+const results = initResults({
+  onHome: () => router.navigate(HOME),
+  onReceipt: () => router.navigate('receipt'),
+});
+const receiptScreen = initReceiptScreen({ onBack: () => router.navigate('results') });
 
 const resume = initResume({
   onResume: () => router.navigate('exam'),
@@ -189,6 +201,7 @@ function startExam() {
   preview.clear();
   problems.clear();
   results.clear();
+  receiptScreen.clear();
   packLoaded = false;
   packProblems = false;
   packResult = null;
@@ -201,13 +214,34 @@ function mountExam() {
 }
 
 function mountResults() {
-  const { totals, outcomes } = gradeExam(current.pack, current.responses);
+  const graded = gradeExam(current.pack, current.responses);
   const meta = current.pack.meta || {};
-  results.show(totals, {
+  results.show(graded.totals, {
     title: current.title,
     subject: typeof meta.subject === 'string' ? meta.subject : '',
-    items: buildReviewItems(current.pack, outcomes),
+    items: buildReviewItems(current.pack, graded.outcomes),
+    analysis: analyzeExam(current.pack, graded),
     saveFailed,
+  });
+}
+
+/** Export receipt (P4-08..P4-10). The screen calls `build` again each time a toggle changes; the clock is read once. */
+function mountReceipt() {
+  const graded = gradeExam(current.pack, current.responses);
+  const now = new Date();
+  const snapshots = loadSnapshots(store);
+  receiptScreen.show({
+    title: current.title,
+    build: (options) => buildReceipt({
+      pack: current.pack,
+      graded,
+      startedAt: current.started_at,
+      finishedAt: current.finished_at,
+      now,
+      tzOffsetMinutes: -now.getTimezoneOffset(),
+      snapshots,
+      options,
+    }),
   });
 }
 

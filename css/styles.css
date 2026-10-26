@@ -205,7 +205,8 @@ textarea:focus{outline:none;border-color:var(--accent);}
 .jump.unsure{border-color:#f5b942;color:#f5b942;}
 .jump.current{border-color:var(--accent);background:var(--accent-dim);color:var(--text);}
 
-pre#exportBox{
+pre#exportBox,
+pre#rcPreview{
   background:var(--card);
   border:1px solid var(--card-border);
   border-radius:10px;
@@ -437,6 +438,68 @@ button.jump.res-correct,button.jump.res-wrong,button.jump.res-skipped{flex-direc
 .review-label{font-weight:700;}
 .review-expl{font-size:14px;line-height:1.5;margin-top:10px;padding-top:10px;border-top:1px solid var(--card-border);color:var(--text-dim);white-space:pre-wrap;word-break:break-word;}
 
+/* --- Results: Topics and Next steps (P4-07) --- */
+.topic-row{
+  background:var(--card);
+  border:1px solid var(--card-border);
+  border-left-width:4px;
+  border-radius:10px;
+  padding:12px 14px;
+  margin-bottom:12px;
+}
+.topic-weak{border-left-color:var(--danger);}
+.topic-developing{border-left-color:#f5b942;}
+.topic-watch{border-left-color:var(--accent);}
+.topic-strong{border-left-color:var(--success);}
+.topic-insufficient{border-left-color:var(--card-border-hover);}
+.topic-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 12px;}
+.topic-name{font-size:15px;font-weight:700;word-break:break-word;}
+.status-chip{
+  font-size:12px;
+  font-weight:700;
+  padding:4px 10px;
+  border-radius:999px;
+  border:1px solid var(--card-border-hover);
+  white-space:nowrap;
+}
+.status-weak{color:var(--danger);border-color:var(--danger);}
+.status-developing{color:#f5b942;border-color:#f5b942;}
+.status-watch{color:var(--accent);border-color:var(--accent);}
+.status-strong{color:var(--success);border-color:var(--success);}
+.status-insufficient{color:var(--text-dim);border-style:dashed;}
+.bar-track{height:8px;background:#262735;border-radius:99px;overflow:hidden;margin:10px 0 8px;}
+.bar-fill{height:100%;background:var(--card-border-hover);border-radius:99px;}
+.topic-weak .bar-fill{background:var(--danger);}
+.topic-developing .bar-fill{background:#f5b942;}
+.topic-watch .bar-fill{background:var(--accent);}
+.topic-strong .bar-fill{background:var(--success);}
+.topic-meta{font-size:13px;color:var(--text-dim);line-height:1.5;}
+.step-list{list-style:none;margin:0 0 6px;padding:0;}
+.step-list li{
+  background:var(--card);
+  border:1px solid var(--card-border);
+  border-radius:10px;
+  padding:12px 14px;
+  margin-bottom:10px;
+  font-size:14px;
+  line-height:1.55;
+  word-break:break-word;
+}
+.step-list li.step-weak{border-left:4px solid var(--danger);}
+#screen-results #resNextSteps h2{margin:18px 0 10px;}
+
+/* --- Export receipt (P4-09, P4-10) --- */
+.toggle-group{border:1px solid var(--card-border);border-radius:12px;padding:6px 14px 8px;margin:0 0 16px;}
+.toggle-group legend{font-size:13px;color:var(--text-dim);padding:0 6px;}
+.toggle{display:flex;align-items:flex-start;gap:14px;min-height:48px;padding:10px 0;cursor:pointer;touch-action:manipulation;}
+.toggle + .toggle{border-top:1px solid var(--card-border);}
+.toggle input{width:24px;height:24px;margin:2px 0 0;flex:none;accent-color:var(--accent);}
+.toggle input:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.toggle-title{display:block;font-size:15px;font-weight:600;}
+.toggle-help{display:block;font-size:13px;color:var(--text-dim);line-height:1.45;margin-top:2px;}
+.size-line{font-size:13px;color:var(--text-dim);margin:0 0 8px;}
+pre#rcPreview:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
 /* --- Small phone tweaks --- */
 @media (max-width: 420px){
   .wrap{padding-left:14px;padding-right:14px;}
@@ -446,6 +509,8 @@ button.jump.res-correct,button.jump.res-wrong,button.jump.res-skipped{flex-direc
   .nav-row{gap:8px;}
   .top-actions{flex-wrap:wrap;}
   .jumpgrid{grid-template-columns:repeat(auto-fill, minmax(32px, 1fr));}
+  .tabs{gap:6px;}
+  .tab{font-size:13px;padding:0 4px;}
 }
 
 /* Stack Prev/Not sure/Next into 2 rows on very narrow screens so labels never clip */

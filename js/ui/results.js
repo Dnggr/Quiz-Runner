@@ -1,10 +1,11 @@
-// ui/results.js — Results screen (P3-06 Overview, P3-07 Review, P3-08 outcome jump grid). DOM only.
-// Numbers come from grader.js, review items from review.js. Everything is built with textContent (pack text is
-// untrusted) and carries an icon AND a word, never colour alone.
+// ui/results.js — Results screen (P3-06 Overview, P3-07 Review, P3-08 outcome jump grid, P4-07 Topics and Next steps). DOM only.
+// Numbers come from grader.js, review items from review.js, topic analysis from analytics.js. Everything is built with
+// textContent (pack text is untrusted) and carries an icon AND a word, never colour alone.
 //
 // This screen is the only place answers and explanations are shown. It is empty until the exam is finished,
 // and `clear()` empties it again whenever the app leaves it, so a later exam never has them in the DOM (P3-10).
 import { REVIEW_FILTERS, DEFAULT_REVIEW_FILTER, filterReviewItems, reviewCounts } from '../review.js';
+import { sortTopicsForDisplay } from '../analytics.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -26,6 +27,21 @@ const EMPTY_TEXT = {
   all: 'No questions.',
 };
 
+// Topic status (RECEIPT_SPEC §3): a glyph AND a word on every chip.
+const TOPIC_STATUS = {
+  weak: { icon: '▼', label: 'Weak' },
+  developing: { icon: '◐', label: 'Developing' },
+  watch: { icon: '◉', label: 'Watch' },
+  strong: { icon: '▲', label: 'Strong' },
+  insufficient: { icon: '·', label: 'Not enough data' },
+};
+const TABS = ['overview', 'topics', 'review', 'next'];
+const TAB_IDS = { overview: 'resTabOverview', topics: 'resTabTopics', review: 'resTabReview', next: 'resTabNext' };
+const PANEL_IDS = { overview: 'resPanelOverview', topics: 'resPanelTopics', review: 'resPanelReview', next: 'resPanelNext' };
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const percentText = (fraction) => `${Math.round(fraction * 100)}%`;
+const mixText = (m) => `${percentText(m.easy)} easy / ${percentText(m.moderate)} moderate / ${percentText(m.challenging)} challenging`;
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -41,23 +57,23 @@ function answerLine(value, text, type) {
 }
 
 /**
- * @param {{ onHome: () => void }} options
+ * @param {{ onHome: () => void, onReceipt: () => void }} options
  * @returns {{
- *   show: (totals: object, info: { title: string, subject?: string, items: object[], saveFailed?: boolean }) => void,
+ *   show: (totals: object, info: { title: string, subject?: string, items: object[], analysis?: object, saveFailed?: boolean }) => void,
  *   clear: () => void,
  * }}
  */
-export function initResults({ onHome }) {
+export function initResults({ onHome, onReceipt }) {
   let items = [];
   let filter = DEFAULT_REVIEW_FILTER;
 
   // ---- tabs ----------------------------------------------------------------------
   function selectTab(name) {
-    const review = name === 'review';
-    $('resTabOverview').setAttribute('aria-selected', String(!review));
-    $('resTabReview').setAttribute('aria-selected', String(review));
-    $('resPanelOverview').hidden = review;
-    $('resPanelReview').hidden = !review;
+    const chosen = TABS.includes(name) ? name : 'overview';
+    for (const tab of TABS) {
+      $(TAB_IDS[tab]).setAttribute('aria-selected', String(tab === chosen));
+      $(PANEL_IDS[tab]).hidden = tab !== chosen;
+    }
   }
 
   // ---- review: chips, list, jump grid -------------------------------------------------
@@ -146,11 +162,93 @@ export function initResults({ onHome }) {
     card.focus({ preventScroll: true });
   }
 
+  // ---- topics: bar + status chip per topic (P4-07) ---------------------------------------------------------
+  function renderTopics(analysis) {
+    const list = $('resTopicList');
+    list.textContent = '';
+    const topics = analysis ? sortTopicsForDisplay(analysis.topics) : [];
+    if (topics.length === 0) {
+      list.appendChild(el('div', 'review-empty', 'No topic data for this exam.'));
+      return;
+    }
+    for (const t of topics) {
+      const st = TOPIC_STATUS[t.status] || TOPIC_STATUS.insufficient;
+      const row = el('article', `topic-row topic-${t.status}`);
+      const head = el('div', 'topic-head');
+      head.append(el('span', 'topic-name', t.name), el('span', `status-chip status-${t.status}`, `${st.icon} ${st.label}`));
+      const track = el('div', 'bar-track');
+      track.setAttribute('aria-hidden', 'true');
+      const fill = el('div', 'bar-fill');
+      fill.style.width = `${Math.round(t.accuracy * 100)}%`;
+      track.appendChild(fill);
+      const bits = [`${percentText(t.accuracy)} correct`, `${t.correct} of ${t.total}`];
+      if (t.misses > 0) bits.push(`${t.misses} missed`);
+      if (t.unsure > 0) bits.push(`${t.unsure} marked not sure`);
+      row.append(head, track, el('div', 'topic-meta', bits.join(' · ')));
+      list.appendChild(row);
+    }
+  }
+
+  // ---- next steps: what to study, what to take next (P4-07) -------------------------------------------------
+  function section(parent, heading) {
+    parent.appendChild(el('h2', null, heading));
+    const ul = el('ul', 'step-list');
+    parent.appendChild(ul);
+    return ul;
+  }
+
+  function renderNextSteps(analysis) {
+    const root = $('resNextSteps');
+    root.textContent = '';
+    if (!analysis) return;
+    const nameOf = new Map(analysis.topics.map((t) => [t.id, t.name]));
+
+    const study = section(root, 'What to study');
+    if (analysis.gaps.length + analysis.misconceptions.length === 0) {
+      study.appendChild(el('li', null, 'No missed questions in this exam.'));
+    } else {
+      study.appendChild(el('li', null, `${plural(analysis.misconceptions.length, 'misconception', 'misconceptions')}: answered confidently but wrong. Fix these first.`));
+      study.appendChild(el('li', null, `${plural(analysis.gaps.length, 'gap', 'gaps')}: skipped, or wrong and marked not sure. These are things you knew you did not know.`));
+    }
+    if (analysis.weaknesses.length > 0) {
+      for (const t of analysis.weaknesses) {
+        const li = el('li', 'step-weak');
+        li.append(el('strong', null, `▼ ${t.name}`), ` — ${plural(t.misses, 'miss', 'misses')}, ${percentText(t.accuracy)} correct. Study this first.`);
+        study.appendChild(li);
+      }
+    } else {
+      study.appendChild(el('li', null, 'No weak topics. One missed question is not a pattern yet.'));
+    }
+    for (const t of analysis.watch) {
+      const st = TOPIC_STATUS[t.status];
+      const li = el('li');
+      li.append(el('strong', null, `${st.icon} ${t.name}`), ` — ${st.label.toLowerCase()}: ${t.misses > 0 ? `${plural(t.misses, 'miss', 'misses')}, ` : ''}${percentText(t.accuracy)} correct. Keep an eye on it.`);
+      study.appendChild(li);
+    }
+    if (analysis.shaky.length > 0) {
+      const shaky = analysis.shaky.map((o) => `Q${o.number} (${nameOf.get(o.topic) || o.topic})`).join(', ');
+      study.appendChild(el('li', null, `Correct but not sure (could be lucky guesses): ${shaky}.`));
+    }
+    if (analysis.strengths.length > 0) {
+      study.appendChild(el('li', null, `Strong: ${analysis.strengths.map((t) => t.name).join(', ')}. Light review is enough.`));
+    }
+
+    const next = analysis.nextExam;
+    const take = section(root, 'What to take next');
+    take.appendChild(el('li', null, `A follow-up exam of ${next.recommended_total} new questions.`));
+    for (const a of next.allocations) {
+      const li = el('li');
+      li.append(el('strong', null, `${a.name} × ${a.count}`), ` — ${a.reason}; ${mixText(a.difficulty_mix)}`);
+      take.appendChild(li);
+    }
+    root.appendChild(el('div', 'note', 'Export the receipt and paste it into an AI chat with your course files attached. It carries these numbers and the format for the next quiz.'));
+  }
+
   // ---- public ----------------------------------------------------------------------------
   function clear() {
     items = [];
     filter = DEFAULT_REVIEW_FILTER;
-    for (const id of ['resTitle', 'resSubject', 'resScore', 'resPercentRating', 'resCounts', 'resJumpGrid', 'resFilters', 'resReviewList']) {
+    for (const id of ['resTitle', 'resSubject', 'resScore', 'resPercentRating', 'resCounts', 'resJumpGrid', 'resFilters', 'resReviewList', 'resTopicList', 'resNextSteps']) {
       $(id).textContent = '';
     }
     $('resSaveWarn').style.display = 'none';
@@ -158,7 +256,7 @@ export function initResults({ onHome }) {
   }
 
   /** @param {import('../grader.js').Totals} totals */
-  function show(totals, { title, subject = '', items: reviewItems = [], saveFailed = false }) {
+  function show(totals, { title, subject = '', items: reviewItems = [], analysis = null, saveFailed = false }) {
     clear();
     items = reviewItems;
 
@@ -180,11 +278,13 @@ export function initResults({ onHome }) {
     renderJumpGrid();
     renderFilters();
     renderList();
+    renderTopics(analysis);
+    renderNextSteps(analysis);
   }
 
   $('resHomeBtn').addEventListener('click', onHome);
-  $('resTabOverview').addEventListener('click', () => selectTab('overview'));
-  $('resTabReview').addEventListener('click', () => selectTab('review'));
+  $('resReceiptBtn').addEventListener('click', onReceipt);
+  for (const tab of TABS) $(TAB_IDS[tab]).addEventListener('click', () => selectTab(tab));
 
   return { show, clear };
 }

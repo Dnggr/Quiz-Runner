@@ -58,6 +58,10 @@ export const DIFFICULTY_MIX_BY_GROUP = Object.freeze({
   other: Object.freeze({ easy: 0.20, moderate: 0.50, challenging: 0.30 }),
 });
 
+// ---- Receipt (RECEIPT_SPEC §7-§8, DEV_CHECKLIST P4-08..P4-10) -----------------
+export const RECEIPT_FORMAT = 'quizrunner.receipt';   // `format` field of the JSON receipt
+export const CHARS_PER_TOKEN = 4;                      // size estimate shown on the export screen: characters / 4
+
 // ---- Pack validation (QUIZ_PACK_SPEC §7) ---------------------------------
 export const ANSWER_SKEW_MAX_SHARE = 0.40;   // warn when any correct letter is ABOVE this share
 export const EXPECTED_OPTION_COUNT = 4;
