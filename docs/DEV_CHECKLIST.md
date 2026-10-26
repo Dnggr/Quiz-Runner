@@ -77,11 +77,11 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 **Done when:** a receipt pasted into Claude and ChatGPT lets them explain your mistakes and propose the next quiz without extra context.
 
 ## Phase 5 — Prompt Builder
-- [ ] P5-01 Screen with fields: mode · subject · learner description · question count · difficulty mix (default 30/40/30) · skill coverage checkboxes · delivery (file or code block / split into parts of N)
-- [ ] P5-02 Mode presets: initial 130 · targeted 40 · retention 12 (all editable)
-- [ ] P5-03 `promptBuilder.js` (pure) assembling the blocks from `PROMPT_TEMPLATES.md`
-- [ ] P5-04 Embed the compact format spec in every prompt (prompt must work in a fresh chat)
-- [ ] P5-05 Targeted / retention: paste receipt or "Use latest from this device"; validate and summarize what will be targeted; allow editing question counts per topic
+- [x] P5-01 Screen with fields: mode · subject · learner description · question count · difficulty mix (default 30/40/30) · skill coverage checkboxes · delivery (file or code block / split into parts of N)
+- [x] P5-02 Mode presets: initial 130 · targeted 40 · retention 12 (all editable)
+- [x] P5-03 `promptBuilder.js` (pure) assembling the blocks from `PROMPT_TEMPLATES.md`
+- [x] P5-04 Embed the compact format spec in every prompt (prompt must work in a fresh chat)
+- [x] P5-05 Targeted / retention: paste receipt or "Use latest from this device"; validate and summarize what will be targeted; allow editing question counts per topic
 - [ ] P5-06 Force topic reuse: embed exact topic ids and names from the receipt
 - [ ] P5-07 Live preview, Copy, Download `.md`, length estimate
 - [ ] P5-08 Remember last-used options in `settings`

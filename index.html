@@ -40,6 +40,7 @@ D. To prevent devices from communicating with one another
     <button class="btn btn-primary" id="loadBtn" style="width:100%;margin-top:16px;">Load Questions</button>
     <button class="btn" id="fileBtn" style="width:100%;margin-top:10px;">Choose a file…</button>
     <input type="file" id="fileInput" accept=".json,.txt,.md,application/json,text/plain,text/markdown" hidden>
+    <button class="btn" id="builderBtn" type="button" style="width:100%;margin-top:10px;">Prompt Builder</button>
   </div>
 
   <!-- SCREEN: PACK PROBLEMS (P2-06) -->
@@ -200,6 +201,87 @@ D. To prevent devices from communicating with one another
     <div class="copied-msg" id="rcMsg" role="status" aria-live="polite"></div>
     <button class="btn" id="rcBackBtn" type="button" style="width:100%;margin-top:6px;">Back to results</button>
     <div class="note">Paste the receipt into any AI chat. It explains itself, so you can ask it to explain your mistakes, make a study plan, or write your next quiz. The .json file is the same data for re-importing into this app.</div>
+  </div>
+
+  <!-- SCREEN: PROMPT BUILDER (P5-01..P5-05). The prompt is made by promptBuilder.js; this screen only collects the options. -->
+  <div class="screen" id="screen-builder">
+    <h1>Prompt Builder</h1>
+    <div class="subtitle">Set up the quiz you want, then paste the prompt into an AI chat that has your course files attached. The prompt includes the quiz format, so it works in a fresh chat.</div>
+
+    <div class="chip-bar" id="pbModes" role="group" aria-label="Mode">
+      <button class="chip-btn" type="button" data-mode="initial" aria-pressed="true">Initial</button>
+      <button class="chip-btn" type="button" data-mode="targeted" aria-pressed="false">Targeted</button>
+      <button class="chip-btn" type="button" data-mode="retention" aria-pressed="false">Retention</button>
+      <button class="chip-btn" type="button" data-mode="custom" aria-pressed="false">Custom</button>
+    </div>
+    <div class="field-help" id="pbModeHelp"></div>
+
+    <div class="field">
+      <label for="pbSubject">Subject</label>
+      <input type="text" id="pbSubject" autocomplete="off" placeholder="e.g. Computer Networks">
+    </div>
+    <div class="field">
+      <label for="pbLearner">Learner description</label>
+      <input type="text" id="pbLearner" autocomplete="off">
+      <div class="field-help">Used as “I am a …” in the prompt.</div>
+    </div>
+    <div class="field">
+      <label for="pbCount">Number of questions</label>
+      <input type="number" id="pbCount" inputmode="numeric" min="1" step="1">
+      <div class="field-help" id="pbCountHelp"></div>
+    </div>
+
+    <div class="field" id="pbCustomWrap" hidden>
+      <label for="pbCustomTask">Your task for the AI</label>
+      <textarea id="pbCustomTask" class="pb-small" placeholder="Describe the quiz you want. The format and delivery rules are added for you."></textarea>
+    </div>
+
+    <fieldset class="toggle-group" id="pbDifficultyWrap">
+      <legend>Difficulty mix (%)</legend>
+      <div class="pb-mix">
+        <div class="field"><label for="pbEasy">Easy</label><input type="number" id="pbEasy" inputmode="numeric" min="0" max="100" step="1"></div>
+        <div class="field"><label for="pbModerate">Moderate</label><input type="number" id="pbModerate" inputmode="numeric" min="0" max="100" step="1"></div>
+        <div class="field"><label for="pbChallenging">Challenging</label><input type="number" id="pbChallenging" inputmode="numeric" min="0" max="100" step="1"></div>
+      </div>
+      <div class="field-help" id="pbMixTotal" role="status" aria-live="polite"></div>
+    </fieldset>
+
+    <fieldset class="toggle-group" id="pbSkillsWrap">
+      <legend>Skill coverage</legend>
+      <div id="pbSkills"></div>
+    </fieldset>
+
+    <fieldset class="toggle-group" id="pbDeliveryWrap">
+      <legend>Delivery</legend>
+      <label class="toggle"><input type="radio" name="pbDelivery" id="pbDeliveryFile" value="file-or-code" checked><span><span class="toggle-title">One file or code block</span><span class="toggle-help">All questions in one reply</span></span></label>
+      <label class="toggle"><input type="radio" name="pbDelivery" id="pbDeliveryParts" value="parts"><span><span class="toggle-title">Split into parts</span><span class="toggle-help">Safer for long quizzes: the AI sends one part at a time</span></span></label>
+      <div class="field" id="pbPartWrap" hidden>
+        <label for="pbPartSize">Questions per part</label>
+        <input type="number" id="pbPartSize" inputmode="numeric" min="1" step="1">
+      </div>
+    </fieldset>
+
+    <!-- Targeted and retention only (P5-05). A pasted receipt can hold answers, so this is emptied before an exam starts. -->
+    <section id="pbReceiptWrap" hidden aria-labelledby="pbReceiptTitle">
+      <h2 id="pbReceiptTitle">Receipt of your last exam</h2>
+      <label class="sr-only" for="pbReceiptText">Paste a Quiz Runner receipt</label>
+      <textarea id="pbReceiptText" class="pb-small" placeholder="Paste a receipt (.md or .json) exported from Quiz Runner"></textarea>
+      <div class="row">
+        <button class="btn" id="pbLatestBtn" type="button">Use latest from this device</button>
+        <button class="btn" id="pbClearReceiptBtn" type="button">Clear</button>
+      </div>
+      <div class="error-box" id="pbReceiptErrors" role="alert"></div>
+      <div class="warn-box" id="pbReceiptWarnings" role="status"></div>
+      <div id="pbSummary" aria-live="polite"></div>
+      <div id="pbRows"></div>
+      <div class="size-line" id="pbRowsTotal" role="status" aria-live="polite"></div>
+    </section>
+
+    <div class="warn-box" id="pbErrors" role="status"></div>
+    <div class="warn-box" id="pbWarnings" role="status"></div>
+    <div class="ok-box" id="pbReady" role="status"></div>
+
+    <button class="btn" id="pbBackBtn" type="button" style="width:100%;margin-top:24px;">Back to start</button>
   </div>
 
   <!-- SCREEN 3: EXPORT -->

@@ -8,13 +8,14 @@ import { initExam } from './ui/exam.js';
 import { initResults } from './ui/results.js';
 import { initReceiptScreen } from './ui/receiptscreen.js';
 import { initResume } from './ui/resume.js';
+import { initPromptBuilder } from './ui/promptbuilder.js';
 import { store } from './store.js';
 import { toExamQuestions } from './exam.js';
 import { gradeExam } from './grader.js';
 import { analyzeExam } from './analytics.js';
 import { buildReviewItems } from './review.js';
 import { buildReceipt } from './receipt.js';
-import { saveFinishedExam, loadSnapshots } from './history.js';
+import { saveFinishedExam, loadSnapshots, rebuildLatestReceipt } from './history.js';
 import { buildSession, saveSession, loadSession, clearSession, describeSession } from './session.js';
 
 const $ = (id) => document.getElementById(id);
@@ -29,6 +30,7 @@ const SCREEN_IDS = {
   results: 'screen-results',
   receipt: 'screen-receipt',
   export: 'screen-export',
+  builder: 'screen-builder',
 };
 const HOME = 'input';
 
@@ -86,6 +88,10 @@ const router = createRouter({
     else if (route.name === 'results') mountResults();
     else if (route.name === 'receipt') mountReceipt();
     else if (route.name === HOME) resume.show(unfinishedInfo());
+    else if (route.name === 'builder') promptBuilder.enter();
+    // A receipt pasted into the Prompt Builder can hold the answers of an earlier exam (possibly this very quiz):
+    // it must not be in the DOM while an exam is on screen (P3-10).
+    if (route.name === 'exam') promptBuilder.clearReceipt();
     // The Results screen is the only place with answers on it: empty it as soon as the app leaves it (P3-10).
     if (route.name !== 'results') results.clear();
     // The receipt export holds answers and explanations too (P4-09): same rule.
@@ -164,6 +170,23 @@ const results = initResults({
 });
 const receiptScreen = initReceiptScreen({ onBack: () => router.navigate('results') });
 
+// Prompt Builder (P5-01..P5-05): receipts come from the stored history, the quiz id number from the stored exams.
+const promptBuilder = initPromptBuilder({
+  onBack: () => router.navigate(HOME),
+  getLatestReceipt: () => {
+    const now = new Date();
+    // Embedded with the missed-question detail off and the concepts on (PROMPT_TEMPLATES "RECEIPT_BLOCK"); the quiz format
+    // (section 10) is stripped from a pasted receipt, so it is left out here too. History stays on: retention needs the priority topics.
+    return rebuildLatestReceipt(store, {
+      now,
+      tzOffsetMinutes: -now.getTimezoneOffset(),
+      options: { missed: false, history: true, concepts: true, formatSpec: false },
+    });
+  },
+  getSnapshots: () => loadSnapshots(store),
+});
+$('builderBtn').addEventListener('click', () => router.navigate('builder'));
+
 const resume = initResume({
   onResume: () => router.navigate('exam'),
   onDiscard: () => {
@@ -202,6 +225,7 @@ function startExam() {
   problems.clear();
   results.clear();
   receiptScreen.clear();
+  promptBuilder.clearReceipt();
   packLoaded = false;
   packProblems = false;
   packResult = null;

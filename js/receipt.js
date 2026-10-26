@@ -394,3 +394,92 @@ export function buildReceipt({
 
 /** Safe file name stem for downloads: the receipt id with anything odd replaced. */
 export const receiptFileStem = (receiptId) => String(receiptId).replace(/[^A-Za-z0-9._-]+/g, '-');
+
+// ============================================================================================================
+// Reading a receipt back in (P5-05; RECEIPT_SPEC §9 "Import rules"). Pure: no DOM, no storage.
+// The Prompt Builder uses this to check a pasted receipt. Merging receipts into history is P6-08, not here.
+// ============================================================================================================
+
+/**
+ * Where the JSON block of a Markdown receipt sits (section 11). The generator escapes backticks inside the JSON
+ * (`\u0060`), so the first closing fence after the last ```json opener is the real end of the block.
+ * @param {string} markdown
+ * @returns {{ start: number, end: number, text: string } | null}  `[start, end)` is the JSON text, up to the closing fence
+ */
+export function findEmbeddedJson(markdown) {
+  const open = markdown.lastIndexOf('```json');
+  if (open === -1) return null;
+  const lineEnd = markdown.indexOf('\n', open);
+  if (lineEnd === -1) return null;
+  const start = lineEnd + 1;
+  const close = markdown.indexOf('```', start);
+  if (close === -1) return null;
+  return { start, end: close, text: markdown.slice(start, close) };
+}
+
+/**
+ * Parse and check a pasted receipt: the Markdown form (between the BEGIN / END markers) or the bare JSON form.
+ * Errors block use; warnings do not (an unknown `version` is a warning: "warn and try best-effort import").
+ * What it requires is what a next-quiz prompt needs: the format tag, the exam id, and the topic list with ids and names.
+ * @param {string} text
+ * @returns {{ ok: boolean, errors: string[], warnings: string[], data: object | null, markdown: string | null, source: 'markdown' | 'json' | null }}
+ */
+export function parseReceipt(text) {
+  const out = { ok: false, errors: [], warnings: [], data: null, markdown: null, source: null };
+  const raw = String(text ?? '').replace(/^\uFEFF/, '').trim();
+  if (raw === '') {
+    out.errors.push('Paste a receipt first.');
+    return out;
+  }
+
+  let jsonText = null;
+  const begin = raw.indexOf(RECEIPT_BEGIN);
+  if (begin !== -1) {
+    const end = raw.lastIndexOf(RECEIPT_END);
+    if (end < begin) {
+      out.errors.push(`The receipt is cut off: the end marker (${RECEIPT_END}) is missing. Copy the whole receipt.`);
+      return out;
+    }
+    out.markdown = raw.slice(begin, end + RECEIPT_END.length);
+    out.source = 'markdown';
+    const block = findEmbeddedJson(out.markdown);
+    if (!block) {
+      out.errors.push('The receipt has no machine-readable data block (section 11). Export it again from Quiz Runner.');
+      return out;
+    }
+    jsonText = block.text;
+  } else if (raw.startsWith('{')) {
+    out.source = 'json';
+    jsonText = raw;
+  } else {
+    out.errors.push('This does not look like a Quiz Runner receipt. Paste the whole receipt (.md or .json) exported from Quiz Runner.');
+    return out;
+  }
+
+  let data;
+  try {
+    data = JSON.parse(jsonText);
+  } catch (err) {
+    out.errors.push(`The receipt's data could not be read (${err instanceof SyntaxError ? err.message : 'invalid JSON'}). It may be cut off or edited.`);
+    return out;
+  }
+  if (!isPlainObject(data) || data.format !== RECEIPT_FORMAT) {
+    out.errors.push(`This is not a Quiz Runner receipt (its "format" should be "${RECEIPT_FORMAT}").`);
+    return out;
+  }
+
+  if (!Number.isFinite(data.version)) out.warnings.push('The receipt has no version number; reading it as best as possible.');
+  else if (data.version !== SPEC_VERSION) out.warnings.push(`The receipt is spec v${data.version}, this app writes v${SPEC_VERSION}. Reading it as best as possible.`);
+
+  const exam = isPlainObject(data.exam) ? data.exam : null;
+  if (!exam || typeof exam.quiz_id !== 'string' || exam.quiz_id.trim() === '') out.errors.push('The receipt does not say which exam it is for (exam.quiz_id is missing).');
+  const list = Array.isArray(data.topic_list) ? data.topic_list : null;
+  const usable = list ? list.filter((t) => isPlainObject(t) && typeof t.id === 'string' && t.id.trim() !== '' && typeof t.name === 'string' && t.name.trim() !== '') : [];
+  if (usable.length === 0) out.errors.push('The receipt has no topic list (topic_list), so the next quiz cannot reuse your topics.');
+  else if (usable.length < list.length) out.warnings.push(`${list.length - usable.length} entr${list.length - usable.length === 1 ? 'y' : 'ies'} of the receipt's topic list had no id or name and will be ignored.`);
+
+  if (out.errors.length > 0) return out;
+  out.ok = true;
+  out.data = data;
+  return out;
+}

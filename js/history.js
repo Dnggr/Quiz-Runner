@@ -5,6 +5,7 @@
 // replaces it instead of adding a duplicate. Retaking a quiz adds a new entry.
 import { STORAGE_KEYS, HISTORY_SCHEMA_VERSION, APP_VERSION, SPEC_VERSION, packKey } from './constants.js';
 import { snapshotFromHistoryEntry } from './analytics.js';
+import { buildReceipt } from './receipt.js';
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -82,4 +83,36 @@ export function loadSnapshots(store) {
   return entries
     .map((e) => snapshotFromHistoryEntry(e, typeof e.quiz_id === 'string' ? store.get(packKey(e.quiz_id), null) : null))
     .filter((s) => s !== null);
+}
+
+/**
+ * "Use latest from this device" (P5-05): rebuild the receipt of the most recently finished stored exam, from its stored
+ * outcomes and its stored pack. Reads only; never writes.
+ * @param {{ get: Function }} store
+ * @param {{ now?: Date, tzOffsetMinutes?: number, options?: object }} [input]  `options` = receipt export toggles (receipt.js)
+ * @returns {{ ok: true, text: string, receiptId: string, title: string } | { ok: false, error: string }}
+ */
+export function rebuildLatestReceipt(store, { now = new Date(), tzOffsetMinutes = 0, options = {} } = {}) {
+  const { entries } = readHistory(store);
+  const usable = entries.filter((e) => typeof e.quiz_id === 'string' && isPlainObject(e.totals) && Array.isArray(e.outcomes));
+  if (usable.length === 0) return { ok: false, error: 'No finished exam is stored on this device yet. Finish an exam, or paste a receipt instead.' };
+
+  const when = (e) => { const ms = Date.parse(e.finished_at || e.started_at); return Number.isFinite(ms) ? ms : 0; };
+  const latest = usable.reduce((best, e) => (when(e) >= when(best) ? e : best));   // ties: the one stored later
+
+  const pack = store.get(packKey(latest.quiz_id), null);
+  if (!isPlainObject(pack) || !Array.isArray(pack.questions)) {
+    return { ok: false, error: `The latest exam (“${latest.title || latest.quiz_id}”) is stored, but its question pack is gone, so its receipt cannot be rebuilt. Paste a receipt instead.` };
+  }
+  const receipt = buildReceipt({
+    pack,
+    graded: { outcomes: latest.outcomes, totals: latest.totals },
+    startedAt: latest.started_at,
+    finishedAt: latest.finished_at || null,
+    now,
+    tzOffsetMinutes,
+    snapshots: loadSnapshots(store),
+    options,
+  });
+  return { ok: true, text: receipt.markdown, receiptId: receipt.receiptId, title: String(latest.title || latest.quiz_id) };
 }
