@@ -57,13 +57,13 @@ function answerLine(value, text, type) {
 }
 
 /**
- * @param {{ onHome: () => void, onReceipt: () => void }} options
+ * @param {{ onHome: () => void, onReceipt: () => void, onNextPrompt?: () => void }} options
  * @returns {{
  *   show: (totals: object, info: { title: string, subject?: string, items: object[], analysis?: object, saveFailed?: boolean }) => void,
  *   clear: () => void,
  * }}
  */
-export function initResults({ onHome, onReceipt }) {
+export function initResults({ onHome, onReceipt, onNextPrompt = () => {} }) {
   let items = [];
   let filter = DEFAULT_REVIEW_FILTER;
 
@@ -284,6 +284,7 @@ export function initResults({ onHome, onReceipt }) {
 
   $('resHomeBtn').addEventListener('click', onHome);
   $('resReceiptBtn').addEventListener('click', onReceipt);
+  $('resNextPromptBtn').addEventListener('click', onNextPrompt);   // P5-09
   for (const tab of TABS) $(TAB_IDS[tab]).addEventListener('click', () => selectTab(tab));
 
   return { show, clear };

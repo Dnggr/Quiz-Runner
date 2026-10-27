@@ -174,6 +174,7 @@ D. To prevent devices from communicating with one another
     </div>
 
     <button class="btn btn-primary" id="resReceiptBtn" type="button" style="width:100%;margin-top:24px;">Export receipt</button>
+    <button class="btn" id="resNextPromptBtn" type="button" style="width:100%;margin-top:10px;">Next quiz prompt</button>
     <button class="btn" id="resHomeBtn" type="button" style="width:100%;margin-top:10px;">Back to start</button>
   </div>
 
@@ -199,11 +200,12 @@ D. To prevent devices from communicating with one another
       <button class="btn" id="rcDownloadJsonBtn" type="button">Download .json</button>
     </div>
     <div class="copied-msg" id="rcMsg" role="status" aria-live="polite"></div>
-    <button class="btn" id="rcBackBtn" type="button" style="width:100%;margin-top:6px;">Back to results</button>
+    <button class="btn" id="rcNextPromptBtn" type="button" style="width:100%;margin-top:6px;">Next quiz prompt</button>
+    <button class="btn" id="rcBackBtn" type="button" style="width:100%;margin-top:10px;">Back to results</button>
     <div class="note">Paste the receipt into any AI chat. It explains itself, so you can ask it to explain your mistakes, make a study plan, or write your next quiz. The .json file is the same data for re-importing into this app.</div>
   </div>
 
-  <!-- SCREEN: PROMPT BUILDER (P5-01..P5-05). The prompt is made by promptBuilder.js; this screen only collects the options. -->
+  <!-- SCREEN: PROMPT BUILDER (P5-01..P5-09). The prompt is made by promptBuilder.js; this screen only collects the options. -->
   <div class="screen" id="screen-builder">
     <h1>Prompt Builder</h1>
     <div class="subtitle">Set up the quiz you want, then paste the prompt into an AI chat that has your course files attached. The prompt includes the quiz format, so it works in a fresh chat.</div>
@@ -280,6 +282,18 @@ D. To prevent devices from communicating with one another
     <div class="warn-box" id="pbErrors" role="status"></div>
     <div class="warn-box" id="pbWarnings" role="status"></div>
     <div class="ok-box" id="pbReady" role="status"></div>
+
+    <!-- P5-07: the finished prompt. Empty until the form has no problems left. -->
+    <section id="pbOutput" aria-labelledby="pbOutputTitle">
+      <h2 id="pbOutputTitle">Your prompt</h2>
+      <div class="size-line" id="pbSize" role="status" aria-live="polite"></div>
+      <pre id="pbPreview" tabindex="0" aria-label="Prompt preview"></pre>
+      <div class="row">
+        <button class="btn btn-primary" id="pbCopyBtn" type="button">Copy</button>
+        <button class="btn" id="pbDownloadBtn" type="button">Download .md</button>
+      </div>
+      <div class="copied-msg" id="pbMsg" role="status" aria-live="polite"></div>
+    </section>
 
     <button class="btn" id="pbBackBtn" type="button" style="width:100%;margin-top:24px;">Back to start</button>
   </div>

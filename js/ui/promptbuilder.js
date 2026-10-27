@@ -1,13 +1,12 @@
-// ui/promptbuilder.js — the Prompt Builder screen (P5-01 fields, P5-02 presets, P5-05 receipt input). DOM only.
-// Every decision (validation, per-topic allocation, the prompt itself) comes from promptBuilder.js and receipt.js.
+// ui/promptbuilder.js — the Prompt Builder screen (P5-01 fields, P5-02 presets, P5-05 receipt input, P5-07 live preview /
+// Copy / Download / length, P5-08 remembered options, P5-09 prefill from a finished exam). DOM only.
+// Every decision (validation, per-topic allocation, the prompt itself) comes from promptBuilder.js and receipt.js;
+// what is remembered is decided by settings.js.
 // All text from a receipt is untrusted: it only goes into the DOM with textContent / `.value`.
-//
-// Out of scope here (later tasks): live preview, Copy, Download and length estimate (P5-07), remembering the last options
-// (P5-08), the "Next quiz prompt" button on Results (P5-09). The screen exposes `getResult()` for P5-07 to show.
 import {
   MODES, RECEIPT_MODES, presetCount, defaultOptions, buildPrompt, receiptInfo, defaultTopicRows, summarizeTarget,
 } from '../promptBuilder.js';
-import { parseReceipt } from '../receipt.js';
+import { parseReceipt, formatTokenEstimate } from '../receipt.js';
 import { SKILLS } from '../constants.js';
 
 const $ = (id) => document.getElementById(id);
@@ -38,30 +37,36 @@ const wholeNumber = (text) => (/^\s*\d+\s*$/.test(String(text)) ? Number(text) :
  *   onBack: () => void,
  *   getLatestReceipt: () => ({ ok: true, text: string } | { ok: false, error: string }),   the newest stored exam as a receipt
  *   getSnapshots: () => object[],                                                         stored exams, for the quiz id number
+ *   loadSettings?: () => object,                                                          the remembered options (settings.js), checked
+ *   saveSettings?: (options: object) => void,                                             remember the options in use (settings.js)
  * }} options
  * @returns {{
- *   enter: () => void, clearReceipt: () => void,
+ *   enter: () => void, clearReceipt: () => void, prefillTargeted: (receiptText: string) => void,
  *   getOptions: () => object, getResult: () => ReturnType<typeof buildPrompt>,
  * }}
  */
-export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
+export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots, loadSettings = () => ({}), saveSettings = () => {} }) {
   const d = defaultOptions('initial');
+  const saved = loadSettings();   // P5-08: only valid fields are in it; anything missing keeps its default
+  const savedMode = saved.mode ?? 'initial';
   const state = {
-    mode: 'initial',
-    subject: '',
-    learner: d.learner,
-    count: String(d.count),
-    easy: String(d.difficulty.easy),
-    moderate: String(d.difficulty.moderate),
-    challenging: String(d.difficulty.challenging),
-    skills: new Set(d.skills),
-    delivery: d.delivery,
-    partSize: String(d.partSize),
-    customTask: '',
+    mode: savedMode,
+    subject: saved.subject ?? '',
+    learner: saved.learner ?? d.learner,
+    count: String(saved.count ?? presetCount(savedMode)),
+    easy: String((saved.difficulty ?? d.difficulty).easy),
+    moderate: String((saved.difficulty ?? d.difficulty).moderate),
+    challenging: String((saved.difficulty ?? d.difficulty).challenging),
+    skills: new Set(saved.skills ?? d.skills),
+    delivery: saved.delivery ?? d.delivery,
+    partSize: String(saved.partSize ?? d.partSize),
+    customTask: saved.customTask ?? '',
     receiptText: '',
     receipt: null,   // parseReceipt() result for `receiptText`, or null when the box is empty
     rows: null,      // per-topic counts: [{ id, name, status, reason, mix, raw }]; `raw` is the text of the number box
   };
+
+  let latest = null;   // the prompt currently in the preview ({ prompt, quizId }): what Copy and Download use; null when there is none
 
   const isReceiptMode = () => RECEIPT_MODES.includes(state.mode);
   const info = () => {
@@ -86,6 +91,12 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
     };
   }
   const getResult = () => buildPrompt(getOptions(), { snapshots: getSnapshots() });
+
+  /** A change the learner made: remember the options (P5-08), then redraw. */
+  function changed() {
+    saveSettings(getOptions());
+    render();
+  }
 
   // ---- per-topic rows (P5-05) ---------------------------------------------------------------------------
   /** Start the rows again from the receipt and the current question count. Manual edits are replaced: the count changed. */
@@ -131,7 +142,7 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
           $('pbCount').value = state.count;
         }
         renderRowsTotal();
-        render();
+        changed();
       });
       wrap.append(label, input);
       box.appendChild(wrap);
@@ -203,7 +214,7 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
     state.rows = null;
     resetRows();
     renderReceipt();
-    render();
+    changed();
   }
 
   function useLatest() {
@@ -230,6 +241,30 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
     $('pbReceiptText').value = '';
     renderReceipt();
     render();
+  }
+
+  /**
+   * P5-09: open the builder ready for the next quiz after an exam. Targeted mode, that exam's receipt in the box, its
+   * subject, and the preset count; the learner, difficulty, skills and delivery stay as last used. The rows start from
+   * the receipt's own allocation, exactly as after "Use latest from this device".
+   * @param {string} receiptText  a receipt as `buildReceipt` writes it (missed-question detail off, see main.js)
+   */
+  function prefillTargeted(receiptText) {
+    state.mode = 'targeted';
+    state.count = String(presetCount('targeted'));
+    $('pbCount').value = state.count;
+    state.receiptText = receiptText;
+    $('pbReceiptText').value = receiptText;
+    state.receipt = receiptText.trim() === '' ? null : parseReceipt(receiptText);
+    const receipt = info();
+    if (receipt && receipt.exam.subject !== '') {
+      state.subject = receipt.exam.subject;
+      $('pbSubject').value = state.subject;
+    }
+    state.rows = null;
+    resetRows();
+    renderReceipt();
+    changed();
   }
 
   // ---- the whole form -----------------------------------------------------------------------------------
@@ -268,6 +303,61 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
       ready.textContent = '';
       ready.style.display = 'none';
     }
+    renderPreview(result);
+  }
+
+  // ---- live preview, Copy, Download (P5-07) ----------------------------------------------------------------
+  /** The preview follows the form: it shows the prompt while the form has no problems, and is hidden otherwise. */
+  function renderPreview(result) {
+    latest = result.ok ? { prompt: result.prompt, quizId: result.meta.quizId } : null;
+    $('pbOutput').hidden = latest === null;
+    $('pbPreview').textContent = latest ? latest.prompt : '';
+    // PROMPT_TEMPLATES "Rules for the builder": an approximate length, characters / 4.
+    $('pbSize').textContent = latest ? `${formatTokenEstimate(latest.prompt)} · ${latest.prompt.length.toLocaleString('en-US')} characters` : '';
+    $('pbMsg').textContent = '';
+  }
+
+  const say = (text) => { $('pbMsg').textContent = text; };
+
+  function fallbackCopy(text) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      say(ok ? 'Copied to clipboard.' : 'Could not copy automatically — select the text in the preview and copy it.');
+    } catch {
+      say('Could not copy automatically — select the text in the preview and copy it.');
+    }
+  }
+
+  function copy() {
+    if (!latest) return;
+    const text = latest.prompt;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => say('Copied to clipboard.')).catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function download() {
+    if (!latest) return;
+    const blob = new Blob([latest.prompt], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${latest.quizId}.prompt.md`;   // like samples/sample-pack-130.prompt.md
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    say(`Downloaded ${a.download}.`);
   }
 
   // ---- events ---------------------------------------------------------------------------------------------
@@ -279,7 +369,7 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
     state.rows = null;
     resetRows();
     renderReceipt();
-    render();
+    changed();
   }
 
   for (const btn of $('pbModes').querySelectorAll('[data-mode]')) btn.addEventListener('click', () => setMode(btn.dataset.mode));
@@ -287,7 +377,7 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
   const bindText = (id, key, after) => $(id).addEventListener('input', (e) => {
     state[key] = e.target.value;
     if (after) after();
-    render();
+    changed();
   });
   bindText('pbSubject', 'subject');
   bindText('pbLearner', 'learner');
@@ -302,7 +392,7 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
       resetRows();
       renderReceipt();
     }
-    render();
+    changed();
   });
 
   // skill checkboxes
@@ -312,11 +402,11 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
     const input = el('input');
     input.type = 'checkbox';
     input.id = `pbSkill-${skill}`;
-    input.checked = true;
+    input.checked = state.skills.has(skill);
     input.addEventListener('change', () => {
       if (input.checked) state.skills.add(skill);
       else state.skills.delete(skill);
-      render();
+      changed();
     });
     const text = el('span');
     text.appendChild(el('span', 'toggle-title', cap(skill)));
@@ -327,7 +417,7 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
   for (const radio of document.querySelectorAll('input[name="pbDelivery"]')) {
     radio.addEventListener('change', () => {
       if (radio.checked) state.delivery = radio.value;
-      render();
+      changed();
     });
   }
 
@@ -335,20 +425,27 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots }) {
   $('pbLatestBtn').addEventListener('click', useLatest);
   $('pbClearReceiptBtn').addEventListener('click', clearReceipt);
   $('pbBackBtn').addEventListener('click', onBack);
+  $('pbCopyBtn').addEventListener('click', copy);
+  $('pbDownloadBtn').addEventListener('click', download);
 
   // ---- first paint ----------------------------------------------------------------------------------------
+  $('pbSubject').value = state.subject;
   $('pbLearner').value = state.learner;
+  $('pbCustomTask').value = state.customTask;
   $('pbCount').value = state.count;
   $('pbEasy').value = state.easy;
   $('pbModerate').value = state.moderate;
   $('pbChallenging').value = state.challenging;
   $('pbPartSize').value = state.partSize;
+  $('pbDeliveryFile').checked = state.delivery === 'file-or-code';
+  $('pbDeliveryParts').checked = state.delivery === 'parts';
   render();
 
   return {
     /** Called each time the screen is opened: stored exams may have changed, which changes the quiz id. */
     enter: render,
     clearReceipt,
+    prefillTargeted,
     getOptions,
     getResult,
   };

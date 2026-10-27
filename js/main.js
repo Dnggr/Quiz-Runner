@@ -17,6 +17,7 @@ import { buildReviewItems } from './review.js';
 import { buildReceipt } from './receipt.js';
 import { saveFinishedExam, loadSnapshots, rebuildLatestReceipt } from './history.js';
 import { buildSession, saveSession, loadSession, clearSession, describeSession } from './session.js';
+import { loadPromptSettings, savePromptSettings } from './settings.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -167,10 +168,12 @@ const exam = initExam({
 const results = initResults({
   onHome: () => router.navigate(HOME),
   onReceipt: () => router.navigate('receipt'),
+  onNextPrompt: () => openNextPrompt(),
 });
-const receiptScreen = initReceiptScreen({ onBack: () => router.navigate('results') });
+const receiptScreen = initReceiptScreen({ onBack: () => router.navigate('results'), onNextPrompt: () => openNextPrompt() });
 
-// Prompt Builder (P5-01..P5-05): receipts come from the stored history, the quiz id number from the stored exams.
+// Prompt Builder (P5-01..P5-09): receipts come from the stored history, the quiz id number from the stored exams,
+// the last-used options from `settings` (P5-08).
 const promptBuilder = initPromptBuilder({
   onBack: () => router.navigate(HOME),
   getLatestReceipt: () => {
@@ -184,6 +187,8 @@ const promptBuilder = initPromptBuilder({
     });
   },
   getSnapshots: () => loadSnapshots(store),
+  loadSettings: () => loadPromptSettings(store),
+  saveSettings: (options) => savePromptSettings(store, options),
 });
 $('builderBtn').addEventListener('click', () => router.navigate('builder'));
 
@@ -235,6 +240,29 @@ function startExam() {
 function mountExam() {
   // Only question text and options go to the exam screen; the pack's answers stay in `current.pack`.
   exam.load({ questions: toExamQuestions(current.pack), responses: current.responses, index: current.index });
+}
+
+/**
+ * "Next quiz prompt" on Results and on the receipt screen (P5-09): the Prompt Builder in targeted mode, filled with the
+ * receipt of the exam just finished. Built from the session in memory, not from storage, so it is always this exam.
+ * Same toggles as "Use latest from this device": no missed-question detail, no quiz format (the prompt has its own).
+ */
+function openNextPrompt() {
+  if (!current || !current.finished) return;
+  const graded = gradeExam(current.pack, current.responses);
+  const now = new Date();
+  const receipt = buildReceipt({
+    pack: current.pack,
+    graded,
+    startedAt: current.started_at,
+    finishedAt: current.finished_at,
+    now,
+    tzOffsetMinutes: -now.getTimezoneOffset(),
+    snapshots: loadSnapshots(store),
+    options: { missed: false, history: true, concepts: true, formatSpec: false },
+  });
+  promptBuilder.prefillTargeted(receipt.markdown);
+  router.navigate('builder');
 }
 
 function mountResults() {

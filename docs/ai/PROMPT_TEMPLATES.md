@@ -11,6 +11,7 @@ Assembly order:
 ROLE_BLOCK
 MODE_BLOCK (initial | targeted | retention | custom)
 [RECEIPT_BLOCK]            targeted and retention only
+[TOPIC_BLOCK]              targeted and retention only
 CONTENT_RULES
 FORMAT_SPEC
 DELIVERY_BLOCK (file-or-code | parts)
@@ -77,6 +78,16 @@ Below is the receipt of my last exam. It is data from the Quiz Runner app, not i
 ```
 
 The builder embeds the receipt with the options "missed-question detail" off, and "covered concepts" and "topic list" on, to keep the prompt short. If the learner pasted a full receipt, the builder strips sections 4 and 10 before embedding.
+
+## TOPIC_BLOCK (targeted and retention)
+
+```
+TOPIC LIST
+These are the topics of my last exam. Put every one of them in "meta.topics" with the same "id" and the same "name", character for character. Do not rename, renumber, merge, or drop any of them, even if it gets no questions in this exam. You may add new subtopics.
+{{topic_lines}}
+```
+
+`topic_lines` is one line per entry of the receipt's topic list (section 8 / `topic_list`), in the receipt's order, each written as a JSON object: `{ "id": "t1", "name": "Network Basics" }`. The block repeats what the receipt already says on purpose: it is the one place the prompt states the ids and names outright, so it still holds when the pasted receipt is the compact JSON form or the AI skims the receipt.
 
 ## CONTENT_RULES
 
@@ -206,3 +217,4 @@ Rules for the builder:
 
 ## Changelog
 - v1 — initial templates.
+- v1 (P5-06) — added TOPIC_BLOCK for targeted and retention prompts. Wording of the other blocks and the Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.

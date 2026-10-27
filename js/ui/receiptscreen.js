@@ -17,13 +17,13 @@ const TOGGLES = {
 };
 
 /**
- * @param {{ onBack: () => void }} options
+ * @param {{ onBack: () => void, onNextPrompt?: () => void }} options
  * @returns {{
  *   show: (info: { title: string, build: (options: object) => { markdown: string, json: string, receiptId: string } }) => void,
  *   clear: () => void,
  * }}
  */
-export function initReceiptScreen({ onBack }) {
+export function initReceiptScreen({ onBack, onNextPrompt = () => {} }) {
   let build = null;
   let latest = null;   // the receipt currently in the preview: what Copy and Download use
 
@@ -103,6 +103,7 @@ export function initReceiptScreen({ onBack }) {
   $('rcDownloadMdBtn').addEventListener('click', () => latest && download('md', 'text/markdown', latest.markdown));
   $('rcDownloadJsonBtn').addEventListener('click', () => latest && download('json', 'application/json', latest.json));
   $('rcBackBtn').addEventListener('click', onBack);
+  $('rcNextPromptBtn').addEventListener('click', onNextPrompt);   // P5-09
 
   return { show, clear };
 }

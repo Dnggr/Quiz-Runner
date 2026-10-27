@@ -3,7 +3,7 @@
 // fails if the two drift apart. The format block comes from receipt.js (`buildFormatSpec`), the one copy of it that the
 // receipt's section 10 uses too, so the prompt and the receipt cannot disagree about the pack format.
 //
-// Assembly order (PROMPT_TEMPLATES): ROLE · MODE · [RECEIPT] · CONTENT_RULES · FORMAT_SPEC · DELIVERY · SELF_CHECK.
+// Assembly order (PROMPT_TEMPLATES): ROLE · MODE · [RECEIPT · TOPIC_LIST] · CONTENT_RULES · FORMAT_SPEC · DELIVERY · SELF_CHECK.
 // The prompt never contains course content (AGENTS.md "Don'ts"): the learner attaches their files to the chat.
 //
 // SPEC GAP notes ("SPEC GAP:") mark every place the specs were silent or disagreed; they are listed in the hand-off notes.
@@ -100,6 +100,10 @@ export const TEMPLATES = Object.freeze({
 === RECEIPT START ===
 {{receipt_markdown_or_compact}}
 === RECEIPT END ===`,
+
+  topicList: `TOPIC LIST
+These are the topics of my last exam. Put every one of them in \"meta.topics\" with the same \"id\" and the same \"name\", character for character. Do not rename, renumber, merge, or drop any of them, even if it gets no questions in this exam. You may add new subtopics.
+{{topic_lines}}`,
 
   contentRules: `CONTENT RULES
 - Mix question types: definitions, functions/purpose, structures/components, processes/how something works, differences/comparisons, sequences/order of steps, and application or scenario-based recall.
@@ -359,6 +363,16 @@ export function embeddableReceipt(parsed) {
   return text.replace(/=+\s*RECEIPT\s+(START|END)\s*=+/gi, '== receipt $1 ==');
 }
 
+// ---- forcing topic reuse (TOPIC_BLOCK, P5-06) ---------------------------------------------------------------
+
+/**
+ * One JSON line per topic of the receipt, in the receipt's order: `{ "id": "t1", "name": "Network Basics" }`.
+ * JSON quoting keeps an id or name that holds a quote or a backslash exact, and each entry on one line.
+ * @param {TopicRef[]} topicList  `info.topicList` from `receiptInfo`
+ * @returns {string}
+ */
+export const topicLines = (topicList) => topicList.map((t) => `{ "id": ${JSON.stringify(t.id)}, "name": ${JSON.stringify(t.name)} }`).join('\n');
+
 // ============================================================================================================
 // Building the prompt (P5-03, P5-04)
 // ============================================================================================================
@@ -491,7 +505,11 @@ export function buildPrompt(raw, { snapshots = [] } = {}) {
     blocks.push(block);
   }
 
-  if (info) blocks.push(fill(TEMPLATES.receipt, { receipt_markdown_or_compact: embeddableReceipt(o.receipt) }));
+  if (info) {
+    blocks.push(fill(TEMPLATES.receipt, { receipt_markdown_or_compact: embeddableReceipt(o.receipt) }));
+    // P5-06: the exact ids and names, stated outright, for every topic of the receipt (also those given 0 questions here).
+    blocks.push(fill(TEMPLATES.topicList, { topic_lines: topicLines(info.topicList) }));
+  }
   blocks.push(TEMPLATES.contentRules);
   blocks.push(buildFormatSpec({ quizId, subject, quizType: mode, quizNumber, part: 1, totalParts, count, specVersion: SPEC_VERSION }));
   blocks.push(fill(delivery === 'parts' ? TEMPLATES.deliveryParts : TEMPLATES.deliveryFile, common));

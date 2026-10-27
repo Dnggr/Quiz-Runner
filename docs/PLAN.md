@@ -126,6 +126,7 @@ quiz-runner/
 │  ├─ analytics.js       pure: topic stats, status, rating, next-exam allocation, history
 │  ├─ receipt.js         pure: result → markdown + json; receipt import
 │  ├─ promptBuilder.js   pure: options → prompt text
+│  ├─ settings.js        pure: last-used Prompt Builder options in `settings` (via store.js)
 │  └─ ui/                one file per screen (DOM only)
 ├─ samples/              good + deliberately broken packs, sample receipt
 ├─ tests/                node:test for the pure modules

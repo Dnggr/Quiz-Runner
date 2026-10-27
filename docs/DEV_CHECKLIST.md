@@ -82,12 +82,12 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 - [x] P5-03 `promptBuilder.js` (pure) assembling the blocks from `PROMPT_TEMPLATES.md`
 - [x] P5-04 Embed the compact format spec in every prompt (prompt must work in a fresh chat)
 - [x] P5-05 Targeted / retention: paste receipt or "Use latest from this device"; validate and summarize what will be targeted; allow editing question counts per topic
-- [ ] P5-06 Force topic reuse: embed exact topic ids and names from the receipt
+- [x] P5-06 Force topic reuse: embed exact topic ids and names from the receipt
 - [ ] P5-07 Live preview, Copy, Download `.md`, length estimate
-- [ ] P5-08 Remember last-used options in `settings`
+- [x] P5-08 Remember last-used options in `settings`
 - [ ] P5-09 "Next quiz prompt" button on Results/Receipt opens the builder prefilled in targeted mode
-- [ ] P5-10 Test: `SPEC_VERSION` in generated prompt equals the loader's supported version
-- [ ] P5-11 Snapshot tests for each mode
+- [x] P5-10 Test: `SPEC_VERSION` in generated prompt equals the loader's supported version
+- [x] P5-11 Snapshot tests for each mode
 
 **Done when:** prompt → AI → pack → exam → receipt → next prompt works as a full loop.
 

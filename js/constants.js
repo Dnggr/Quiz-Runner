@@ -13,6 +13,8 @@ export const STORAGE_KEYS = Object.freeze({
   session: 'session',
   history: 'history',
 });
+export const SETTINGS_PROMPT_BUILDER_FIELD = 'promptBuilder';   // field of the `settings` record that holds the last-used Prompt Builder options (P5-08)
+export const PROMPT_SETTINGS_VERSION = 1;                      // shape of that field; bump if it changes
 export const PACK_KEY_PREFIX = 'pack:';
 export const packKey = (quizId) => PACK_KEY_PREFIX + quizId;
 export const HISTORY_SCHEMA_VERSION = 1;   // shape of one `history` entry (P3-09); bump if it changes
