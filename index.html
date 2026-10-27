@@ -41,6 +41,7 @@ D. To prevent devices from communicating with one another
     <button class="btn" id="fileBtn" style="width:100%;margin-top:10px;">Choose a file…</button>
     <input type="file" id="fileInput" accept=".json,.txt,.md,application/json,text/plain,text/markdown" hidden>
     <button class="btn" id="builderBtn" type="button" style="width:100%;margin-top:10px;">Prompt Builder</button>
+    <button class="btn" id="progressBtn" type="button" style="width:100%;margin-top:10px;">Progress</button>
   </div>
 
   <!-- SCREEN: PACK PROBLEMS (P2-06) -->
@@ -134,10 +135,39 @@ D. To prevent devices from communicating with one another
     </div>
   </div>
 
-  <!-- SCREEN: RESULTS — Overview (P3-06), Topics and Next steps (P4-07), Review (P3-07, P3-08). Filled only after the exam is finished. -->
+  <!-- SCREEN: PROGRESS (P6-01..P6-06). Everything here comes from the history stored on this device; no answers are shown. -->
+  <div class="screen" id="screen-progress">
+    <h1>Progress</h1>
+    <div class="subtitle">Your exams on this device.</div>
+    <div class="warn-box" id="pgCorrupt" role="alert">Your saved history could not be read, so there is nothing to show here. It has not been changed.</div>
+    <div class="review-empty" id="pgEmpty">No exams yet. Finish an exam and it will show up here.</div>
+
+    <div id="pgBody">
+      <h2>Exams</h2>
+      <div id="pgExams"></div>
+
+      <h2 id="pgCompareTitle">Compared with the previous exam</h2>
+      <div id="pgCompare" tabindex="-1"></div>
+
+      <h2>Score trend</h2>
+      <div id="pgTrend"></div>
+
+      <h2>Priority topics</h2>
+      <div id="pgPriority"></div>
+
+      <h2>Topic mastery</h2>
+      <div id="pgMastery"></div>
+    </div>
+
+    <button class="btn" id="pgBackBtn" type="button" style="width:100%;margin-top:24px;">Back to start</button>
+  </div>
+
+  <!-- SCREEN: RESULTS — Overview (P3-06), Topics and Next steps (P4-07), Review (P3-07, P3-08). Filled only after the exam is finished,
+       or, read-only, when an old exam is opened from Progress (P6-02). -->
   <div class="screen" id="screen-results">
     <h1 id="resTitle"></h1>
     <div class="subtitle" id="resSubject"></div>
+    <div class="note" id="resReadOnly" role="status" hidden></div>
     <div class="warn-box" id="resSaveWarn" role="status">This result couldn't be saved on this device (browser storage is unavailable, full or unreadable). It will be lost when you close this page.</div>
 
     <div class="tabs" role="tablist" aria-label="Results sections">

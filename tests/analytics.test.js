@@ -5,6 +5,7 @@ import {
   overallRating, topicStatus, topicStats, classifyMiss, splitMisses, rankTopics, sortTopicsForDisplay,
   clampNextTotal, largestRemainder, allocateNextExam, analyzeExam,
   normalizeName, snapshotFromHistoryEntry, cumulativeProfile, scoreDeltaFor,
+  priorityTopics, topicMastery, compareWithPrevious,
 } from '../js/analytics.js';
 import { gradeExam } from '../js/grader.js';
 import { DIFFICULTY_MIX_BY_GROUP, NEXT_EXAM_DEFAULT_N } from '../js/constants.js';
@@ -337,4 +338,94 @@ test('snapshotFromHistoryEntry: topic status rebuilt from stored outcomes and pa
   assert.deepEqual([withPack.taken_at, withPack.percent, withPack.rating], ['2026-10-25T06:10:00.000Z', 70, 'Fair']);
   assert.deepEqual(snapshotFromHistoryEntry(entry, null).topics, []);
   for (const junk of [null, 5, {}, { quiz_id: 'x', totals: {} }, { totals: graded.totals }]) assert.equal(snapshotFromHistoryEntry(junk, pack), null);
+});
+
+// ---- Phase 6: the same rules, for the Progress screen ----------------------------------------------------
+// Four exams. Networks: a (Oct 1), b (Oct 8), d (Oct 22). Biology: c (Oct 15).
+const history = () => [
+  snap('a@1', 'q1', '2026-10-01T00:00:00Z', 50, [['Transport Layer', 'weak', 0.3], ['Basics', 'strong', 1], ['Routing', 'watch', 0.8]]),
+  snap('b@2', 'q2', '2026-10-08T00:00:00Z', 62.5, [['TRANSPORT LAYER', 'weak', 0.4], ['Basics', 'strong', 1], ['Routing', 'strong', 0.9]]),
+  snap('c@3', 'q3', '2026-10-15T00:00:00Z', 30, [['Cells', 'weak', 0.2]], 'Biology'),
+  snap('d@4', 'q4', '2026-10-22T00:00:00Z', 75, [['Transport layer', 'developing', 0.6], ['Routing', 'strong', 1]]),
+];
+
+test('P6-04 priorityTopics: weak in 2+ distinct exams, with the count, latest spelling, most exams first then by name', () => {
+  assert.deepEqual(priorityTopics(history()), [{ name: 'Transport layer', exams: 2 }]);   // weak in a and b, now developing: still a priority
+  const more = [...history(), snap('e@5', 'q5', '2026-10-25T00:00:00Z', 20, [['Cells', 'weak', 0.1], ['Zebra', 'weak', 0.1], ['Alpha', 'weak', 0.1]], 'Biology'),
+    snap('f@6', 'q6', '2026-10-26T00:00:00Z', 20, [['Zebra', 'weak', 0.1], ['Alpha', 'weak', 0.1], ['Cells', 'weak', 0.1]], 'Biology')];
+  assert.deepEqual(priorityTopics(more).map((p) => [p.name, p.exams]), [['Cells', 3], ['Alpha', 2], ['Transport layer', 2], ['Zebra', 2]]);
+  assert.deepEqual(priorityTopics([]), []);
+});
+
+test('P6-04 priorityTopics agrees with the receipt\'s priority_topics, and the order the exams are given in does not matter', () => {
+  const all = history();
+  assert.deepEqual(priorityTopics(all).map((p) => p.name), cumulativeProfile(all, 'd@4').priority_topics);
+  assert.deepEqual(priorityTopics([...all].reverse()), priorityTopics(all));
+});
+
+test('P6-03 topicMastery: one row per topic matched by normalized name, latest status first, weak topics on top', () => {
+  const rows = topicMastery(history());
+  assert.deepEqual(rows.map((r) => [r.name, r.status]), [['Cells', 'weak'], ['Transport layer', 'developing'], ['Basics', 'strong'], ['Routing', 'strong']]);
+  const transport = rows.find((r) => r.key === 'transport layer');
+  assert.deepEqual(
+    { exams: transport.exams, appearances: transport.appearances, accuracy: transport.accuracy, change: transport.change, improved: transport.improved, priority: transport.priority },
+    { exams: 3, appearances: 3, accuracy: 0.6, change: 20, improved: true, priority: true },
+  );
+  assert.deepEqual(transport.history.map((h) => h.status), ['weak', 'weak', 'developing']);   // oldest first
+});
+
+test('P6-03 topicMastery: change and "improved" follow the receipt rule (status up, or +15 points), not just any rise', () => {
+  const rows = new Map(topicMastery(history()).map((r) => [r.key, r]));
+  assert.equal(rows.get('basics').change, 0);
+  assert.equal(rows.get('basics').improved, false);
+  assert.equal(rows.get('routing').change, 10);            // 0.9 -> 1.0, strong -> strong: a rise, but below 15 points
+  assert.equal(rows.get('routing').improved, false);
+  assert.equal(rows.get('cells').change, null);            // seen once: nothing to compare with
+  assert.equal(rows.get('cells').improved, false);
+  assert.equal(rows.get('cells').priority, false);
+  const improvedNames = topicMastery(history()).filter((r) => r.improved).map((r) => r.name);
+  assert.deepEqual(improvedNames, cumulativeProfile(history(), 'd@4').improved);
+});
+
+test('P6-03 topicMastery: ties on status and accuracy are ordered by name; no exams, no rows', () => {
+  const rows = topicMastery([snap('a@1', 'q1', '2026-10-01T00:00:00Z', 50, [['Zeta', 'watch', 0.5], ['Alpha', 'watch', 0.5], ['Low', 'watch', 0.2]])]);
+  assert.deepEqual(rows.map((r) => r.name), ['Low', 'Alpha', 'Zeta']);
+  assert.deepEqual(topicMastery([]), []);
+  assert.deepEqual(topicMastery([snap('x@1', 'q1', '2026-10-01T00:00:00Z', 50, [])]), []);   // an exam whose pack is gone has no topics
+});
+
+test('P6-05 compareWithPrevious: score change against the previous exam of the same subject, topics as they stood that day', () => {
+  const c = compareWithPrevious(history(), 'd@4');
+  assert.equal(c.exam.id, 'd@4');
+  assert.equal(c.previous.id, 'b@2');                       // not c: Biology is another subject
+  assert.equal(c.scoreDelta, 12.5);                         // 75 - 62.5
+  assert.deepEqual(c.improved, ['Transport layer']);
+  assert.deepEqual(c.stillWeak, ['Cells']);                 // weak where it was last tested, and not retested since
+  assert.deepEqual(c.priority, ['Transport layer']);
+});
+
+test('P6-05 compareWithPrevious: an older exam is compared as of its own day; later exams are ignored', () => {
+  const c = compareWithPrevious(history(), 'b@2');
+  assert.equal(c.previous.id, 'a@1');
+  assert.equal(c.scoreDelta, 12.5);                         // 62.5 - 50
+  assert.deepEqual(c.improved, ['Routing']);                // watch -> strong; Transport layer has not improved yet
+  assert.deepEqual(c.stillWeak, ['TRANSPORT LAYER']);
+  assert.deepEqual(c.priority, ['TRANSPORT LAYER']);
+  assert.equal(compareWithPrevious(history(), 'd@4').exam.percent, 75);   // the full history is not changed by asking
+});
+
+test('P6-05 compareWithPrevious: a first exam has nothing to compare with; an unknown id is null', () => {
+  const first = compareWithPrevious(history(), 'a@1');
+  assert.equal(first.previous, null);
+  assert.equal(first.scoreDelta, null);
+  assert.deepEqual(first.improved, []);
+  assert.deepEqual(first.stillWeak, ['Transport Layer']);
+  assert.equal(compareWithPrevious(history(), 'c@3').previous, null);    // the only Biology exam
+  assert.equal(compareWithPrevious(history(), 'nope'), null);
+});
+
+test('P6-05 compareWithPrevious: the previous exam is the one before in time, whatever order the list comes in', () => {
+  const shuffled = [history()[3], history()[0], history()[2], history()[1]];
+  assert.equal(compareWithPrevious(shuffled, 'd@4').previous.id, 'b@2');
+  assert.equal(compareWithPrevious(shuffled, 'd@4').scoreDelta, 12.5);
 });

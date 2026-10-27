@@ -56,3 +56,38 @@ test('P4-09 ui/receiptscreen.js imports only receipt.js and has no storage or pa
 test('P4-07 ui/results.js builds pack text with textContent only', () => {
   assert.ok(!/innerHTML|insertAdjacentHTML/.test(code('js/ui/results.js')));
 });
+
+// ---- P6-02 / P6-01: the old-exam view and the Progress screen ------------------------------------------------------------
+test('P6-02 an old exam is shown on the Results screen, so leaving either route empties that screen', () => {
+  const main = code('js/main.js');
+  assert.match(main, /if \(route\.name !== 'results' && route\.name !== 'past'\) results\.clear\(\);/);
+  assert.match(main, /past:\s*'screen-results'/);
+});
+
+test('P6-02 an old exam opens only through openPastExam, and not while an exam of the same quiz is unfinished', () => {
+  const main = code('js/main.js');
+  assert.match(main, /route\.name === 'past' && !openPastExam\(store, route\.args\[0\] \?\? '', \{ lockedQuizId: unfinishedQuizId\(\) \}\)\.ok\) return 'progress'/);
+  const mount = main.slice(main.indexOf('function mountPast'), main.indexOf('/** Export receipt'));
+  assert.match(mount, /openPastExam\(store, id \?\? '', \{ lockedQuizId: unfinishedQuizId\(\) \}\)/);
+  assert.match(mount, /readOnly: true/);
+});
+
+test('P6-02 the read-only view hides the actions that belong to the exam just finished', () => {
+  const src = code('js/ui/results.js');
+  assert.match(src, /\$\('resReceiptBtn'\)\.hidden = readOnly;/);
+  assert.match(src, /\$\('resNextPromptBtn'\)\.hidden = readOnly;/);
+  assert.match(src, /\$\('resReceiptBtn'\)\.hidden = false;/, 'clear() restores them');
+});
+
+test('P6-01 ui/progress.js shows no answers: it never mentions them, builds text with textContent only, and does no storage access', () => {
+  const src = code('js/ui/progress.js');
+  for (const word of ['answer', 'explanation', 'outcome']) assert.ok(!new RegExp(`\\b${word}\\b`, 'i').test(src), `ui/progress.js mentions "${word}"`);
+  assert.ok(!/\.pack\b|\bpack\s*[,}]/.test(src), 'it is never handed a pack');
+  assert.ok(!/innerHTML|insertAdjacentHTML|localStorage|\bstore\b/.test(src));
+  assert.deepEqual([...src.matchAll(/from\s+'([^']+)'/g)].map((m) => m[1]), ['../progress.js', '../constants.js', './results.js']);
+});
+
+test('P6-01 progress.js only reads storage: it never calls set, remove or clear on the store', () => {
+  const src = code('js/progress.js');
+  assert.ok(!/\bstore\.(set|remove|clear)\b/.test(src));
+});

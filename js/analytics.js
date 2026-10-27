@@ -288,7 +288,7 @@ export function analyzeExam(pack, graded, { nextTotal = NEXT_EXAM_DEFAULT_N } = 
 }
 
 // ---- Cumulative rules (RECEIPT_SPEC §4) --------------------------------------------------------------
-// The receipt's History toggle needs these. The Progress screen (Phase 6) will reuse them.
+// The receipt's History toggle and the Progress screen (Phase 6) both use these, so they cannot disagree.
 
 /** Lowercase, trimmed, collapsed spaces: how topics (and subjects) are matched across exams. */
 export const normalizeName = (s) => String(s ?? '').toLowerCase().trim().replace(/\s+/g, ' ');
@@ -343,18 +343,99 @@ const movedUp = (from, to) => STATUS_RUNG[from] !== undefined && STATUS_RUNG[to]
 const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
+ * The exam taken just before `sorted[at]` in the same subject (subjects match by normalized name), or null.
+ * @param {ExamSnapshot[]} sorted  oldest first, as `sortSnapshots` returns
+ * @param {number} at  index of the exam in `sorted`
+ * @returns {ExamSnapshot | null}
+ */
+function previousInSubject(sorted, at) {
+  if (at <= 0) return null;
+  const subject = normalizeName(sorted[at].subject);
+  for (let i = at - 1; i >= 0; i--) if (normalizeName(sorted[i].subject) === subject) return sorted[i];
+  return null;
+}
+
+/**
  * Score change of the exam `currentId` against the previous exam of the same subject: percentage points, one decimal.
  * @returns {number | null}  null when there is no earlier exam in that subject
  */
 export function scoreDeltaFor(snapshots, currentId) {
   const sorted = sortSnapshots(snapshots);
   const at = sorted.findIndex((s) => s.id === currentId);
-  if (at <= 0) return null;
-  const subject = normalizeName(sorted[at].subject);
-  for (let i = at - 1; i >= 0; i--) {
-    if (normalizeName(sorted[i].subject) === subject) return Math.round((sorted[at].percent - sorted[i].percent) * 10) / 10;
+  const previous = previousInSubject(sorted, at);
+  return previous ? Math.round((sorted[at].percent - previous.percent) * 10) / 10 : null;
+}
+
+/**
+ * Every topic across the given exams, matched by normalized name: normalized name -> appearances, oldest first.
+ * @param {ExamSnapshot[]} sorted  oldest first
+ */
+function topicTimeline(sorted) {
+  const timeline = new Map();
+  for (const s of sorted) {
+    for (const t of s.topics) {
+      if (!timeline.has(t.key)) timeline.set(t.key, []);
+      timeline.get(t.key).push({ quiz_id: s.quiz_id, name: t.name, status: t.status, accuracy: t.accuracy });
+    }
   }
-  return null;
+  return timeline;
+}
+
+/** Accuracy change between two appearances of a topic, in percentage points, one decimal. */
+const accuracyGain = (prev, last) => Math.round((last.accuracy - prev.accuracy) * 1000) / 10;
+/** RECEIPT_SPEC §4 "improved": the status moved up, or accuracy rose by at least IMPROVED_MIN_ACCURACY_GAIN points. */
+const isImproved = (prev, last) => movedUp(prev.status, last.status) || accuracyGain(prev, last) >= IMPROVED_MIN_ACCURACY_GAIN;
+/** Distinct exams (distinct quiz ids) in which a topic was `weak`. */
+const weakExamCount = (rows) => new Set(rows.filter((r) => r.status === 'weak').map((r) => r.quiz_id)).size;
+
+/**
+ * RECEIPT_SPEC §4 "priority": topics that were `weak` in at least PRIORITY_MIN_EXAMS distinct exams, most exams first,
+ * then by name. Same rule the receipt's History block uses.
+ * @param {ExamSnapshot[]} snapshots
+ * @returns {{ name: string, exams: number }[]}  `name` is the topic's name in its most recent exam
+ */
+export function priorityTopics(snapshots) {
+  const priority = [];
+  for (const rows of topicTimeline(sortSnapshots(snapshots)).values()) {
+    const exams = weakExamCount(rows);
+    if (exams >= PRIORITY_MIN_EXAMS) priority.push({ name: rows[rows.length - 1].name, exams });
+  }
+  return priority.sort((a, b) => b.exams - a.exams || byName(a.name, b.name));
+}
+
+/**
+ * @typedef {{
+ *   key: string, name: string, exams: number, appearances: number, status: Status, accuracy: number,
+ *   change: number | null, improved: boolean, priority: boolean,
+ *   history: { status: Status, accuracy: number }[],
+ * }} TopicMastery   `status` and `accuracy` are from the topic's most recent exam; `change` is the accuracy gain in
+ *   percentage points since the exam before (null when it appeared once); `history` is oldest first.
+ */
+
+/**
+ * P6-03: one row per topic across all exams, matched by normalized topic name. Weak topics first, then by status
+ * (`STATUS_ORDER`), lowest latest accuracy first, then name.
+ * @param {ExamSnapshot[]} snapshots
+ * @returns {TopicMastery[]}
+ */
+export function topicMastery(snapshots) {
+  const rows = [];
+  for (const [key, appearances] of topicTimeline(sortSnapshots(snapshots))) {
+    const last = appearances[appearances.length - 1];
+    const prev = appearances.length >= 2 ? appearances[appearances.length - 2] : null;
+    rows.push({
+      key, name: last.name,
+      exams: new Set(appearances.map((a) => a.quiz_id)).size,
+      appearances: appearances.length,
+      status: last.status, accuracy: last.accuracy,
+      change: prev ? accuracyGain(prev, last) : null,
+      improved: prev ? isImproved(prev, last) : false,
+      priority: weakExamCount(appearances) >= PRIORITY_MIN_EXAMS,
+      history: appearances.map((a) => ({ status: a.status, accuracy: a.accuracy })),
+    });
+  }
+  const rung = (r) => STATUS_ORDER.indexOf(r.status);
+  return rows.sort((a, b) => rung(a) - rung(b) || a.accuracy - b.accuracy || byName(a.name, b.name));
 }
 
 /**
@@ -371,32 +452,44 @@ export function scoreDeltaFor(snapshots, currentId) {
  * @param {string} currentId  `id` of the exam being exported
  */
 export function cumulativeProfile(snapshots, currentId) {
-  const sorted = sortSnapshots(snapshots);
-  const timeline = new Map();   // normalized name -> appearances, oldest first
-  for (const s of sorted) {
-    for (const t of s.topics) {
-      if (!timeline.has(t.key)) timeline.set(t.key, []);
-      timeline.get(t.key).push({ quiz_id: s.quiz_id, name: t.name, status: t.status, accuracy: t.accuracy });
-    }
-  }
-  const priority = [];
+  const timeline = topicTimeline(sortSnapshots(snapshots));
   const improved = [];
   const stillWeak = [];
   for (const rows of timeline.values()) {
     const last = rows[rows.length - 1];
-    const weakExams = new Set(rows.filter((r) => r.status === 'weak').map((r) => r.quiz_id));
-    if (weakExams.size >= PRIORITY_MIN_EXAMS) priority.push({ name: last.name, exams: weakExams.size });
     if (last.status === 'weak') stillWeak.push(last.name);
-    if (rows.length >= 2) {
-      const prev = rows[rows.length - 2];
-      const gainPoints = Math.round((last.accuracy - prev.accuracy) * 1000) / 10;
-      if (movedUp(prev.status, last.status) || gainPoints >= IMPROVED_MIN_ACCURACY_GAIN) improved.push(last.name);
-    }
+    if (rows.length >= 2 && isImproved(rows[rows.length - 2], last)) improved.push(last.name);
   }
   return {
-    priority_topics: priority.sort((a, b) => b.exams - a.exams || byName(a.name, b.name)).map((p) => p.name),
+    priority_topics: priorityTopics(snapshots).map((p) => p.name),
     improved: improved.sort(byName),
     still_weak: stillWeak.sort(byName),
     score_delta: scoreDeltaFor(snapshots, currentId),
+  };
+}
+
+/**
+ * P6-05: exam `examId` set against the exam before it. Everything is worked out as it stood when that exam was
+ * taken: later exams are ignored, so an old exam compares the way it would have the day it was finished.
+ *  - scoreDelta / previous: the previous exam in the same subject (RECEIPT_SPEC §4).
+ *  - improved / stillWeak / priority: the receipt's cumulative rules over the exams up to and including this one.
+ * @param {ExamSnapshot[]} snapshots
+ * @param {string} examId
+ * @returns {{ exam: ExamSnapshot, previous: ExamSnapshot | null, scoreDelta: number | null,
+ *   improved: string[], stillWeak: string[], priority: string[] } | null}  null when there is no such exam
+ */
+export function compareWithPrevious(snapshots, examId) {
+  const sorted = sortSnapshots(snapshots);
+  const at = sorted.findIndex((s) => s.id === examId);
+  if (at < 0) return null;
+  const upTo = sorted.slice(0, at + 1);
+  const profile = cumulativeProfile(upTo, examId);
+  return {
+    exam: sorted[at],
+    previous: previousInSubject(sorted, at),
+    scoreDelta: profile.score_delta,
+    improved: profile.improved,
+    stillWeak: profile.still_weak,
+    priority: profile.priority_topics,
   };
 }

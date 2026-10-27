@@ -142,3 +142,13 @@ test('guard lets a route through once its precondition is met', () => {
   assert.equal(router.current.name, 'quiz');
   assert.equal(win.location.hash, '#/quiz');
 });
+
+// ---- P6-02: an old exam is addressed by its id in the hash ------------------------------------------------------------
+test('P6-02 an exam id (quiz id, "@", an ISO time with colons) survives the trip through the hash', () => {
+  const known = ['input', 'progress', 'past'];
+  for (const id of ['test-pack-01@2026-10-25T10:00:00.000Z', 'a b/c@d?e#f', 'ünï@x']) {
+    const hash = buildHash('past', [id], 'input');
+    assert.match(hash, /^#\/past\/[^/]+$/, 'one path segment, even when the id has a slash');
+    assert.deepEqual(parseHash(hash, known, 'input'), { name: 'past', args: [id], known: true });
+  }
+});

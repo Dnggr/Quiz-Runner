@@ -1,4 +1,5 @@
-// ui/results.js — Results screen (P3-06 Overview, P3-07 Review, P3-08 outcome jump grid, P4-07 Topics and Next steps). DOM only.
+// ui/results.js — Results screen (P3-06 Overview, P3-07 Review, P3-08 outcome jump grid, P4-07 Topics and Next steps,
+// P6-02 read-only view of an old exam). DOM only.
 // Numbers come from grader.js, review items from review.js, topic analysis from analytics.js. Everything is built with
 // textContent (pack text is untrusted) and carries an icon AND a word, never colour alone.
 //
@@ -28,7 +29,7 @@ const EMPTY_TEXT = {
 };
 
 // Topic status (RECEIPT_SPEC §3): a glyph AND a word on every chip.
-const TOPIC_STATUS = {
+export const TOPIC_STATUS = {
   weak: { icon: '▼', label: 'Weak' },
   developing: { icon: '◐', label: 'Developing' },
   watch: { icon: '◉', label: 'Watch' },
@@ -57,15 +58,19 @@ function answerLine(value, text, type) {
 }
 
 /**
- * @param {{ onHome: () => void, onReceipt: () => void, onNextPrompt?: () => void }} options
+ * @param {{ onHome: () => void, onReceipt: () => void, onNextPrompt?: () => void, onBackToProgress?: () => void }} options
  * @returns {{
- *   show: (totals: object, info: { title: string, subject?: string, items: object[], analysis?: object, saveFailed?: boolean }) => void,
+ *   show: (totals: object, info: { title: string, subject?: string, items: object[], analysis?: object, saveFailed?: boolean,
+ *     readOnly?: boolean, note?: string }) => void,
  *   clear: () => void,
  * }}
  */
-export function initResults({ onHome, onReceipt, onNextPrompt = () => {} }) {
+export function initResults({ onHome, onReceipt, onNextPrompt = () => {}, onBackToProgress = () => {} }) {
   let items = [];
   let filter = DEFAULT_REVIEW_FILTER;
+  // P6-02: an old exam opened from Progress. Export receipt and Next quiz prompt act on the exam just finished (the
+  // session in memory), so they are hidden here: they would act on the wrong exam.
+  let readOnly = false;
 
   // ---- tabs ----------------------------------------------------------------------
   function selectTab(name) {
@@ -197,7 +202,7 @@ export function initResults({ onHome, onReceipt, onNextPrompt = () => {} }) {
     return ul;
   }
 
-  function renderNextSteps(analysis) {
+  function renderNextSteps(analysis) {   // uses `readOnly`
     const root = $('resNextSteps');
     root.textContent = '';
     if (!analysis) return;
@@ -241,7 +246,7 @@ export function initResults({ onHome, onReceipt, onNextPrompt = () => {} }) {
       li.append(el('strong', null, `${a.name} × ${a.count}`), ` — ${a.reason}; ${mixText(a.difficulty_mix)}`);
       take.appendChild(li);
     }
-    root.appendChild(el('div', 'note', 'Export the receipt and paste it into an AI chat with your course files attached. It carries these numbers and the format for the next quiz.'));
+    if (!readOnly) root.appendChild(el('div', 'note', 'Export the receipt and paste it into an AI chat with your course files attached. It carries these numbers and the format for the next quiz.'));
   }
 
   // ---- public ----------------------------------------------------------------------------
@@ -252,13 +257,25 @@ export function initResults({ onHome, onReceipt, onNextPrompt = () => {} }) {
       $(id).textContent = '';
     }
     $('resSaveWarn').style.display = 'none';
+    readOnly = false;
+    $('resReadOnly').textContent = '';
+    $('resReadOnly').hidden = true;
+    $('resReceiptBtn').hidden = false;
+    $('resNextPromptBtn').hidden = false;
+    $('resHomeBtn').textContent = 'Back to start';
     selectTab('overview');
   }
 
   /** @param {import('../grader.js').Totals} totals */
-  function show(totals, { title, subject = '', items: reviewItems = [], analysis = null, saveFailed = false }) {
+  function show(totals, { title, subject = '', items: reviewItems = [], analysis = null, saveFailed = false, readOnly: isReadOnly = false, note = '' }) {
     clear();
     items = reviewItems;
+    readOnly = isReadOnly;
+    $('resReadOnly').textContent = note;
+    $('resReadOnly').hidden = !(readOnly && note !== '');
+    $('resReceiptBtn').hidden = readOnly;
+    $('resNextPromptBtn').hidden = readOnly;
+    $('resHomeBtn').textContent = readOnly ? 'Back to progress' : 'Back to start';
 
     $('resTitle').textContent = title || 'Results';
     $('resSubject').textContent = subject;
@@ -282,7 +299,7 @@ export function initResults({ onHome, onReceipt, onNextPrompt = () => {} }) {
     renderNextSteps(analysis);
   }
 
-  $('resHomeBtn').addEventListener('click', onHome);
+  $('resHomeBtn').addEventListener('click', () => (readOnly ? onBackToProgress() : onHome()));
   $('resReceiptBtn').addEventListener('click', onReceipt);
   $('resNextPromptBtn').addEventListener('click', onNextPrompt);   // P5-09
   for (const tab of TABS) $(TAB_IDS[tab]).addEventListener('click', () => selectTab(tab));

@@ -94,9 +94,9 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 ## Phase 6 — History and learner profile
 - [ ] P6-01 Progress screen: list of exams (date, title, score, rating)
 - [ ] P6-02 Open an old exam read-only (uses stored pack)
-- [ ] P6-03 Topic mastery across exams (matched by normalized topic name)
-- [ ] P6-04 Priority topics: weak in ≥ 2 distinct exams
-- [ ] P6-05 Compare with previous exam: score delta, improved topics, still-weak topics
+- [x] P6-03 Topic mastery across exams (matched by normalized topic name)
+- [x] P6-04 Priority topics: weak in ≥ 2 distinct exams
+- [x] P6-05 Compare with previous exam: score delta, improved topics, still-weak topics
 - [ ] P6-06 Simple trend chart (inline SVG, no library)
 - [ ] P6-07 Export cumulative profile receipt
 - [ ] P6-08 Import receipt/profile: merge into history, skip duplicates by `receipt_id`

@@ -9,6 +9,7 @@ import { initResults } from './ui/results.js';
 import { initReceiptScreen } from './ui/receiptscreen.js';
 import { initResume } from './ui/resume.js';
 import { initPromptBuilder } from './ui/promptbuilder.js';
+import { initProgress } from './ui/progress.js';
 import { store } from './store.js';
 import { toExamQuestions } from './exam.js';
 import { gradeExam } from './grader.js';
@@ -18,6 +19,7 @@ import { buildReceipt } from './receipt.js';
 import { saveFinishedExam, loadSnapshots, rebuildLatestReceipt } from './history.js';
 import { buildSession, saveSession, loadSession, clearSession, describeSession } from './session.js';
 import { loadPromptSettings, savePromptSettings } from './settings.js';
+import { buildProgress, openPastExam, examDate } from './progress.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -32,6 +34,8 @@ const SCREEN_IDS = {
   receipt: 'screen-receipt',
   export: 'screen-export',
   builder: 'screen-builder',
+  progress: 'screen-progress',
+  past: 'screen-results',   // an old exam, read-only (P6-02): the Results screen again, filled from storage
 };
 const HOME = 'input';
 
@@ -75,6 +79,9 @@ const router = createRouter({
       if (!session) return HOME;
       if (session.finished) return 'results';
     }
+    // An old exam opens only when it is in the history with a pack that still fits it, and not while a session of the
+    // same quiz is unfinished (its old answers must not be on screen then).
+    if (route.name === 'past' && !openPastExam(store, route.args[0] ?? '', { lockedQuizId: unfinishedQuizId() }).ok) return 'progress';
     // results and the receipt export both need a finished exam.
     if (route.name === 'results' || route.name === 'receipt') {
       const session = hydrate();
@@ -87,6 +94,8 @@ const router = createRouter({
     quickPaste.enter(route.name);
     if (route.name === 'exam') mountExam();
     else if (route.name === 'results') mountResults();
+    else if (route.name === 'past') mountPast(route.args[0]);
+    else if (route.name === 'progress') mountProgress();
     else if (route.name === 'receipt') mountReceipt();
     else if (route.name === HOME) resume.show(unfinishedInfo());
     else if (route.name === 'builder') promptBuilder.enter();
@@ -94,7 +103,7 @@ const router = createRouter({
     // it must not be in the DOM while an exam is on screen (P3-10).
     if (route.name === 'exam') promptBuilder.clearReceipt();
     // The Results screen is the only place with answers on it: empty it as soon as the app leaves it (P3-10).
-    if (route.name !== 'results') results.clear();
+    if (route.name !== 'results' && route.name !== 'past') results.clear();
     // The receipt export holds answers and explanations too (P4-09): same rule.
     if (route.name !== 'receipt') receiptScreen.clear();
   },
@@ -169,6 +178,7 @@ const results = initResults({
   onHome: () => router.navigate(HOME),
   onReceipt: () => router.navigate('receipt'),
   onNextPrompt: () => openNextPrompt(),
+  onBackToProgress: () => router.navigate('progress'),
 });
 const receiptScreen = initReceiptScreen({ onBack: () => router.navigate('results'), onNextPrompt: () => openNextPrompt() });
 
@@ -190,7 +200,13 @@ const promptBuilder = initPromptBuilder({
   loadSettings: () => loadPromptSettings(store),
   saveSettings: (options) => savePromptSettings(store, options),
 });
+const progress = initProgress({
+  onOpen: (id) => router.navigate('past', { args: [id] }),
+  onCompare: (id) => mountProgress(id),
+  onBack: () => router.navigate(HOME),
+});
 $('builderBtn').addEventListener('click', () => router.navigate('builder'));
+$('progressBtn').addEventListener('click', () => router.navigate('progress'));
 
 const resume = initResume({
   onResume: () => router.navigate('exam'),
@@ -204,6 +220,12 @@ const resume = initResume({
 function discardSession() {
   current = null;
   clearSession(store);
+}
+
+/** Quiz id of the unfinished exam, else null. Its old results stay closed while it runs (P6-02). */
+function unfinishedQuizId() {
+  const session = hydrate();
+  return session && !session.finished ? session.quiz_id : null;
 }
 
 /** Banner data for an unfinished exam, else null. */
@@ -274,6 +296,28 @@ function mountResults() {
     items: buildReviewItems(current.pack, graded.outcomes),
     analysis: analyzeExam(current.pack, graded),
     saveFailed,
+  });
+}
+
+/** Progress screen (P6-01..P6-06): the history on this device. `compareId` is the exam to compare and chart. */
+function mountProgress(compareId = null) {
+  const now = new Date();
+  progress.show(buildProgress(store, { tzOffsetMinutes: -now.getTimezoneOffset(), compareId, lockedQuizId: unfinishedQuizId() }));
+}
+
+/** An old exam, read-only (P6-02): from the stored history entry and pack, not from the session in memory. */
+function mountPast(id) {
+  const opened = openPastExam(store, id ?? '', { lockedQuizId: unfinishedQuizId() });
+  if (!opened.ok) { router.navigate('progress', { replace: true }); return; }
+  const { entry, pack, totals, outcomes } = opened;
+  const when = examDate(entry.started_at, -new Date().getTimezoneOffset());
+  results.show(totals, {
+    title: entry.title,
+    subject: typeof entry.subject === 'string' ? entry.subject : '',
+    items: buildReviewItems(pack, outcomes),
+    analysis: analyzeExam(pack, { outcomes, totals }),
+    readOnly: true,
+    note: `Read-only view of an earlier exam${when ? `, taken on ${when}` : ''}.`,
   });
 }
 
