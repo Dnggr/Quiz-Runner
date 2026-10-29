@@ -314,7 +314,20 @@ export function buildSnapshot({ id, quizId, title, subject, takenAt, totals, sta
 }
 
 /**
+ * Topics of an exam that was imported from a receipt (P6-08): it has no outcomes to rebuild them from, so the receipt's own
+ * per-topic status and accuracy were kept in `entry.imported.topics`. Unusable rows are skipped.
+ * @returns {ExamSnapshot['topics']}
+ */
+function importedTopics(entry) {
+  const list = isPlainObject(entry.imported) && Array.isArray(entry.imported.topics) ? entry.imported.topics : [];
+  return list
+    .filter((t) => isPlainObject(t) && str(t.name) !== '' && STATUS_ORDER.includes(t.status) && Number.isFinite(t.accuracy))
+    .map((t) => ({ key: normalizeName(t.name), name: str(t.name), status: t.status, accuracy: t.accuracy }));
+}
+
+/**
  * Snapshot of a stored `history` entry (history.js). `pack` is the stored `pack:<quiz_id>` or null.
+ * An exam imported from a receipt has no outcomes; its topics come from what the receipt said.
  * @returns {ExamSnapshot | null}  null when the entry is unusable
  */
 export function snapshotFromHistoryEntry(entry, pack) {
@@ -330,7 +343,7 @@ export function snapshotFromHistoryEntry(entry, pack) {
     taken_at: String(entry.started_at ?? ''),
     correct: t.correct, total: t.total, percent: t.percent,
     rating: typeof t.rating === 'string' ? t.rating : overallRating(t.percent),
-    topics: snapshotTopics(stats),
+    topics: stats.length > 0 ? snapshotTopics(stats) : importedTopics(entry),
   };
 }
 

@@ -1,5 +1,7 @@
 // ui/progress.js — the Progress screen (P6-01 exam list, P6-02 Open, P6-03 topic mastery, P6-04 priority topics,
-// P6-05 compare with the previous exam, P6-06 trend chart). DOM only.
+// P6-05 compare with the previous exam, P6-06 trend chart, P6-07..P6-11 the "Your data" tools and Delete). DOM only.
+// What the tools do is decided by history.js / backup.js and wired in main.js; this file only reads the chosen file's text,
+// calls the handler and shows its message. Messages are written with textContent (titles come from receipts: untrusted).
 // Every number and rule comes from progress.js / analytics.js. Titles and topic names come from packs, so they are
 // untrusted: everything is written with textContent, and status is always an icon AND a word, never colour alone.
 // This screen never shows answers; opening an exam goes to the read-only Results screen.
@@ -42,10 +44,21 @@ function changeText(delta) {
  *   onOpen: (examId: string) => void,       open an old exam read-only
  *   onCompare: (examId: string) => void,    compare (and chart) this exam: the screen is shown again with it chosen
  *   onBack: () => void,
+ *   onDelete: (examId: string, title: string) => void,           delete one exam (the caller confirms)
+ *   onExportProfile: () => void, onRetention: () => void,         P6-07, P6-11
+ *   onImportReceipt: (text: string) => void,                      P6-08 (the caller reports through `report`)
+ *   onBackup: () => void, onRestore: (text: string) => void,      P6-09
+ *   onClearAll: () => void,                                       P6-10 (the caller confirms)
  * }} options
- * @returns {{ show: (model: ReturnType<typeof import('../progress.js').buildProgress>) => void }}
+ * @returns {{
+ *   show: (model: ReturnType<typeof import('../progress.js').buildProgress>) => void,
+ *   report: (result: { ok: boolean, message?: string, error?: string, warnings?: string[] }) => void,
+ * }}
  */
-export function initProgress({ onOpen, onCompare, onBack }) {
+export function initProgress({
+  onOpen, onCompare, onBack, onDelete = () => {}, onExportProfile = () => {}, onRetention = () => {},
+  onImportReceipt = () => {}, onBackup = () => {}, onRestore = () => {}, onClearAll = () => {},
+}) {
   // ---- P6-01 / P6-02: the list ------------------------------------------------------------------------------
   function renderExams(model) {
     const list = $('pgExams');
@@ -55,7 +68,9 @@ export function initProgress({ onOpen, onCompare, onBack }) {
       const row = el('article', `exam-row${chosen ? ' exam-chosen' : ''}`);
 
       const head = el('div', 'exam-head');
-      head.append(el('span', 'exam-title', exam.title || 'Untitled quiz'), el('span', 'exam-score', `${exam.correct}/${exam.total} · ${exam.percent}%`));
+      const title = el('span', 'exam-title', exam.title || 'Untitled quiz');
+      if (exam.imported) title.appendChild(el('span', 'exam-badge', 'imported'));
+      head.append(title, el('span', 'exam-score', `${exam.correct}/${exam.total} · ${exam.percent}%`));
       const meta = [exam.date, exam.rating, exam.subject].filter(Boolean).join(' · ');
       row.append(head, el('div', 'exam-meta', meta));
 
@@ -74,7 +89,11 @@ export function initProgress({ onOpen, onCompare, onBack }) {
         $('pgCompareTitle').scrollIntoView?.({ block: 'start' });
         $('pgCompare').focus({ preventScroll: true });
       });
-      buttons.append(open, compare);
+      const remove = el('button', 'btn btn-danger', 'Delete');
+      remove.type = 'button';
+      remove.setAttribute('aria-label', `Delete ${exam.title || 'untitled quiz'} from your history`);
+      remove.addEventListener('click', () => onDelete(exam.id, exam.title || 'Untitled quiz'));
+      buttons.append(open, compare, remove);
       row.appendChild(buttons);
 
       if (!exam.canOpen) {
@@ -202,7 +221,10 @@ export function initProgress({ onOpen, onCompare, onBack }) {
     const empty = !model.corrupt && model.exams.length === 0;
     $('pgEmpty').hidden = !empty;
     $('pgBody').hidden = model.corrupt || empty;
-    if (model.corrupt || empty) return;
+    if (model.corrupt || empty) {
+      for (const id of ['pgExams', 'pgCompare', 'pgTrend', 'pgPriority', 'pgMastery']) $(id).textContent = '';   // nothing stale behind the empty state
+      return;
+    }
     renderExams(model);
     renderCompare(model);
     renderTrend(model);
@@ -210,6 +232,56 @@ export function initProgress({ onOpen, onCompare, onBack }) {
     renderMastery(model);
   }
 
-  $('pgBackBtn').addEventListener('click', onBack);
-  return { show };
+  // ---- P6-07..P6-11: the "Your data" tools ------------------------------------------------------------------
+  const BOXES = ['pgDataError', 'pgDataWarn', 'pgDataOk'];
+  const clearMessages = () => { for (const id of BOXES) { $(id).textContent = ''; $(id).style.display = 'none'; } };
+  const list = (box, lines) => {
+    box.textContent = '';
+    if (lines.length === 1) box.textContent = lines[0];
+    else {
+      const ul = el('ul');
+      for (const line of lines) ul.appendChild(el('li', null, line));
+      box.appendChild(ul);
+    }
+    box.style.display = 'block';
+  };
+
+  /** Show the outcome of a tool: an error, or a message with its warnings. */
+  function report(result) {
+    clearMessages();
+    if (!result.ok) { list($('pgDataError'), [result.error || 'Something went wrong.']); return; }
+    if (result.warnings && result.warnings.length > 0) list($('pgDataWarn'), result.warnings);
+    if (result.message) list($('pgDataOk'), [result.message]);
+  }
+
+  /** Read the file chosen in `input` as text and hand it to `handler`; the input is reset so the same file can be chosen again. */
+  function pickFile(input, handler) {
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+      clearMessages();
+      let text;
+      try {
+        text = await file.text();
+      } catch {
+        report({ ok: false, error: 'The file could not be read.' });
+        return;
+      }
+      handler(text);
+    });
+  }
+
+  const tool = (id, handler) => $(id).addEventListener('click', () => { clearMessages(); handler(); });
+  tool('pgProfileBtn', onExportProfile);
+  tool('pgRetentionBtn', onRetention);
+  tool('pgBackupBtn', onBackup);
+  tool('pgClearBtn', onClearAll);
+  $('pgImportBtn').addEventListener('click', () => $('pgImportInput').click());
+  $('pgRestoreBtn').addEventListener('click', () => $('pgRestoreInput').click());
+  pickFile($('pgImportInput'), onImportReceipt);
+  pickFile($('pgRestoreInput'), onRestore);
+
+  $('pgBackBtn').addEventListener('click', () => { clearMessages(); onBack(); });
+  return { show, report };
 }

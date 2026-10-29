@@ -166,9 +166,23 @@ If asked to split into parts: every part is a **complete, valid pack** with iden
 
 ## 7. Loader/validator behavior (for developers)
 
-- **Errors (block loading):** not JSON after cleanup · no `questions` · question missing `question`, `answer`, or `topic` · `answer` not among options · duplicate `number` · `topic` not in `meta.topics`.
+- **Errors (block loading):** not JSON after cleanup (and not a cut-off reply, see "Truncated output") · no `questions` · question missing `question`, `answer`, or `topic` · `answer` not among options · duplicate `number` · `topic` not in `meta.topics`.
 - **Warnings (load anyway):** count ≠ `meta.total_questions` · missing `explanation` or `concept` · option count ≠ 4 · any correct letter above 40% of questions · `version` differs from the app's `SPEC_VERSION`.
 - **Normalization:** uppercase option letters and answers, trim whitespace, infer `type` (`tf` if no `options`), default `part`/`total_parts` to 1.
 
+### Truncated output (P7-01)
+If the text stops in the middle of the JSON (the AI's reply was cut off) and a `"questions"` list had started, the loader keeps every question object that is complete, drops the one that was being written, and loads the rest as a normal pack. The count warning applies as usual, and the app shows "Loaded 97 of 130". If no complete question can be kept (for example the text stops inside `meta`), nothing loads and the ordinary "cut off" error is shown.
+
+### Missing questions (P7-02)
+`meta.total_questions` is the plan: the questions are numbered 1…total. A number in that range with no question is missing. A `total_questions` that is absent, not a whole number, or above 1000 is treated as unknown (nothing is reported missing). The app offers a Continue prompt for the missing numbers (`PROMPT_TEMPLATES.md`).
+
+### Merging parts (P7-04)
+A pack loaded while a pack with the same `quiz_id` is still waiting on the Topics preview is merged with it:
+- Questions are combined by `number`. When both have the same number, the later pack's question wins. A part pasted twice changes nothing.
+- `meta`: for every field the later pack has, the later one wins; `topics` are the union by `id` (later wins for the same id). The merged pack has `part` 1 and `total_parts` 1.
+- Progress is "Parts loaded: X of Y": X counts the distinct `part` numbers that arrived whole (a part that was cut off does not count until a whole copy of it is loaded), Y is the largest `total_parts` seen.
+- A pack with a different `quiz_id` replaces the waiting one.
+
 ## 8. Changelog
 - v1 — initial format.
+- v1 (P7) — documented the loader's handling of truncated output, missing questions and multi-part merging (§7). The format itself is unchanged, so `SPEC_VERSION` stays 1.

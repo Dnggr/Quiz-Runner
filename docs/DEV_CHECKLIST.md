@@ -97,18 +97,18 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 - [x] P6-03 Topic mastery across exams (matched by normalized topic name)
 - [x] P6-04 Priority topics: weak in ≥ 2 distinct exams
 - [x] P6-05 Compare with previous exam: score delta, improved topics, still-weak topics
-- [ ] P6-06 Simple trend chart (inline SVG, no library)
-- [ ] P6-07 Export cumulative profile receipt
-- [ ] P6-08 Import receipt/profile: merge into history, skip duplicates by `receipt_id`
-- [ ] P6-09 Full backup (download) and restore
-- [ ] P6-10 Delete one exam / clear all data with confirmation
-- [ ] P6-11 Retention check generator: pulls from all topics in history, extra weight on priority topics
+- [x] P6-06 Simple trend chart (inline SVG, no library)
+- [x] P6-07 Export cumulative profile receipt
+- [x] P6-08 Import receipt/profile: merge into history, skip duplicates by `receipt_id`
+- [x] P6-09 Full backup (download) and restore
+- [x] P6-10 Delete one exam / clear all data with confirmation
+- [x] P6-11 Retention check generator: pulls from all topics in history, extra weight on priority topics
 
 ## Phase 7 — Resilience
-- [ ] P7-01 Truncation salvage: keep all complete question objects, report "Loaded 97 of 130"
-- [ ] P7-02 **Continue prompt** generated from the missing question numbers
-- [ ] P7-03 **Repair prompt** generated from the validator's error list
-- [ ] P7-04 Multi-part merge: same `quiz_id`, combine by question number, later part wins on conflict, show progress "Parts loaded: 2 of 3"
+- [x] P7-01 Truncation salvage: keep all complete question objects, report "Loaded 97 of 130"
+- [x] P7-02 **Continue prompt** generated from the missing question numbers
+- [x] P7-03 **Repair prompt** generated from the validator's error list
+- [x] P7-04 Multi-part merge: same `quiz_id`, combine by question number, later part wins on conflict, show progress "Parts loaded: 2 of 3"
 - [ ] P7-05 `localStorage` quota error handling (message + export backup + prune oldest)
 - [ ] P7-06 Large paste performance (130-question pack loads in under 1 s on a mid-range phone)
 - [ ] P7-07 Graceful handling of corrupted `session` / `history` (offer reset, never white-screen)

@@ -101,10 +101,32 @@ export function createStore({ storage, prefix = STORAGE_PREFIX } = {}) {
     }
   }
 
+  /**
+   * Every key this store holds, without the namespace (P6-09 backup, P6-10 clear all): the ones in persistent storage
+   * plus the ones that only live in memory. Other apps' keys on the same origin are not listed. Never throws.
+   * @returns {string[]}  sorted, no duplicates
+   */
+  function keys() {
+    const found = new Set(memory.keys());
+    if (backend && typeof backend.length === 'number' && typeof backend.key === 'function') {
+      try {
+        for (let i = 0; i < backend.length; i++) {
+          const name = backend.key(i);
+          if (typeof name === 'string' && name.startsWith(prefix)) found.add(name.slice(prefix.length));
+        }
+      } catch (err) {
+        fail(err);
+      }
+    }
+    found.delete('__probe__');
+    return [...found].sort();
+  }
+
   return {
     get,
     set,
     remove,
+    keys,
     isPersistent,
     get lastError() { return lastError; },
   };

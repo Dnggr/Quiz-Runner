@@ -186,7 +186,7 @@ const AI_BLOCK = [
 ];
 
 /** `{ topic name: [concepts] }` in pack order, each concept once, topics without concepts left out. */
-function coveredConcepts(pack, topics) {
+export function coveredConcepts(pack, topics) {
   const questions = Array.isArray(pack.questions) ? pack.questions.filter(isPlainObject) : [];
   const out = {};
   for (const t of topics) {
@@ -211,12 +211,15 @@ function coveredConcepts(pack, topics) {
  *   snapshots?: import('./analytics.js').ExamSnapshot[],  other exams from history (the current one is added or replaced)
  *   options?: Partial<typeof DEFAULT_RECEIPT_OPTIONS>,
  *   nextTotal?: number,                            size of the recommended next exam (default 40)
+ *   profile?: { topicList: { id: string, name: string }[], concepts: Record<string, string[]> } | null,
+ *     P6-07 cumulative profile: the topic list (section 8, `topic_list`) and the covered concepts (section 9,
+ *     `covered_concepts`) of every exam on the device instead of this exam's alone. Everything else is still this exam's.
  * }} input
  * @returns {{ data: object, markdown: string, json: string, receiptId: string }}
  */
 export function buildReceipt({
   pack, graded, startedAt, finishedAt = null, now = new Date(), tzOffsetMinutes = 0,
-  snapshots = [], options = {}, nextTotal = NEXT_EXAM_DEFAULT_N,
+  snapshots = [], options = {}, nextTotal = NEXT_EXAM_DEFAULT_N, profile = null,
 }) {
   const opts = normalizeOptions(options);
   const analysis = analyzeExam(pack, graded, { nextTotal });
@@ -226,7 +229,8 @@ export function buildReceipt({
   const title = String(meta.title ?? '');
   const subject = typeof meta.subject === 'string' ? meta.subject : '';
   const quizType = typeof meta.quiz_type === 'string' ? meta.quiz_type : '';
-  const topicList = packTopics(pack);
+  const topicList = packTopics(pack);                       // this exam's topics: stats, missed questions, shaky list
+  const listedTopics = profile ? profile.topicList : topicList;   // what sections 8 and `topic_list` announce
   const topicName = new Map(topicList.map((t) => [t.id, t.name]));
   const namesOf = (stats) => stats.map((t) => t.name);
 
@@ -284,14 +288,14 @@ export function buildReceipt({
   }
   data.shaky = shakyItems.map((i) => ({ number: i.number, topic: i.topicId, concept: i.concept }));
   data.next_exam = analysis.nextExam;
-  data.topic_list = topicList.map((t) => ({ id: t.id, name: t.name }));
+  data.topic_list = listedTopics.map((t) => ({ id: t.id, name: t.name }));
   if (opts.history) {
     data.history = historyRows.map((r) => ({
       quiz_id: r.snapshot.quiz_id, title: r.snapshot.title, taken_at: r.takenAt, percent: r.snapshot.percent, rating: r.snapshot.rating,
     }));
     data.cumulative = cumulative;
   }
-  const concepts = coveredConcepts(pack, topicList);
+  const concepts = profile ? profile.concepts : coveredConcepts(pack, topicList);
   if (opts.concepts) data.covered_concepts = concepts;
 
   const json = JSON.stringify(data, null, 2) + '\n';
@@ -371,7 +375,7 @@ export function buildReceipt({
   }
 
   out.push('## 8. Topic list used (reuse these exact ids and names in future quizzes)');
-  for (const t of topicList) out.push(`- ${oneLine(t.id)}: ${oneLine(t.name)}`);
+  for (const t of listedTopics) out.push(`- ${oneLine(t.id)}: ${oneLine(t.name)}`);
   out.push('');
 
   if (opts.concepts) {

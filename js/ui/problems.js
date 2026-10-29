@@ -2,6 +2,8 @@
 // with every problem listed under its question number. DOM only; grouping comes from validator.js.
 import { groupIssues } from '../validator.js';
 import { renderIssueGroups } from './issuelist.js';
+import { buildRepairPrompt } from '../promptBuilder.js';
+import { copyText } from './clipboard.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -11,12 +13,23 @@ const $ = (id) => document.getElementById(id);
  */
 export function initProblems({ onBack }) {
   $('problemsBackBtn').addEventListener('click', onBack);
+  $('repairCopyBtn').addEventListener('click', () => {
+    const text = $('repairPrompt').value;
+    if (!text) return;
+    copyText(text).then((ok) => {
+      $('repairMsg').textContent = ok ? 'Copied to clipboard.' : 'Could not copy automatically. Open \u201cShow the prompt\u201d and copy the text.';
+    });
+  });
 
   function clear() {
     $('problemsSummary').textContent = '';
     $('problemsNote').textContent = '';
     $('problemsNote').style.display = 'none';
     $('problemsList').textContent = '';
+    // The repair prompt quotes the pack's own answers in its problem lines: it must not outlive this screen (P3-10).
+    $('repairPrompt').value = '';
+    $('repairMsg').textContent = '';
+    $('repairBox').hidden = true;
   }
 
   function show(result, note = '') {
@@ -30,6 +43,13 @@ export function initProblems({ onBack }) {
       $('problemsNote').style.display = 'block';
     }
     renderIssueGroups($('problemsList'), groupIssues(result.errors));
+
+    // P7-03: the Repair prompt, built from the same error list.
+    const repair = buildRepairPrompt(result.errors);
+    if (repair.ok) {
+      $('repairPrompt').value = repair.prompt;
+      $('repairBox').hidden = false;
+    }
   }
 
   return { show, clear };

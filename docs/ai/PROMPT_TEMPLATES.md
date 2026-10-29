@@ -186,11 +186,24 @@ Please send the corrected file again, in the same format (Quiz Pack v{{spec_vers
 
 `error_list` example: `- Question 14: answer "E" is not one of its options (A-D)` · `- Question 22: topic "t9" is not in meta.topics` · `- Duplicate question number 31`.
 
+The app (P7-03) fills `error_list` from the validator's errors, one line per problem, in the order of the error screen (pack-level problems first, then by question number). Each line is the validator's own message on one line, cut at 300 characters. At most 50 problems are listed, then `- …and N more problems.`
+
 ## Continue prompt (generated after truncation or a missing range)
 
 ```
 Your last reply was cut off or incomplete. I received questions 1-{{last_loaded}} of {{total}}.
 Continue from question {{last_loaded_plus_1}} to {{total}}. Use the same quiz pack format with the same "meta" (same quiz_id, total_questions, and topics) and include only the questions from {{last_loaded_plus_1}} onward, numbered as in the original plan. Output only the JSON as a downloadable file or one code block. Do not reveal answers in the chat.
+```
+
+The app (P7-02) uses this template when the missing question numbers are the tail of the exam: questions 1 to `last_loaded` arrived and `last_loaded_plus_1` to `total` did not. `total` is `meta.total_questions`.
+
+### Variant: missing numbers at the start or in the middle
+
+Used when the missing numbers are not a tail (for example part 2 of 3 was loaded before part 1, or part 2 never came). `missing_ranges` is written as `1-45, 91-130`.
+
+```
+Your last reply was incomplete. I received {{loaded}} of {{total}} questions. These question numbers are still missing: {{missing_ranges}}.
+Send only the missing questions. Use the same quiz pack format with the same "meta" (same quiz_id, total_questions, and topics), numbered as in the original plan. Output only the JSON as a downloadable file or one code block. Do not reveal answers in the chat.
 ```
 
 ## Builder options (UI → placeholders)
@@ -218,3 +231,4 @@ Rules for the builder:
 ## Changelog
 - v1 — initial templates.
 - v1 (P5-06) — added TOPIC_BLOCK for targeted and retention prompts. Wording of the other blocks and the Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.
+- v1 (P7-02, P7-03) — documented how the app fills the Repair and Continue prompts, and added the "missing numbers" variant of the Continue prompt. The Repair and Continue wording and the Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.

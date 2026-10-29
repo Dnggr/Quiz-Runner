@@ -65,6 +65,9 @@ test('P5-03 every template in promptBuilder.js is the text in docs/ai/PROMPT_TEM
     'file-or-code (default)': TEMPLATES.deliveryFile,
     'parts': TEMPLATES.deliveryParts,
     'SELF_CHECK': TEMPLATES.selfCheck,
+    'Repair prompt (generated when validation fails)': TEMPLATES.repair,
+    'Continue prompt (generated after truncation or a missing range)': TEMPLATES.continue,
+    'Variant: missing numbers at the start or in the middle': TEMPLATES.continueMissing,
   };
   for (const [heading, text] of Object.entries(pairs)) {
     assert.ok(doc.has(heading), `PROMPT_TEMPLATES.md has no block under "${heading}"`);

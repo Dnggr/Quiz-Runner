@@ -20,6 +20,11 @@ export const packKey = (quizId) => PACK_KEY_PREFIX + quizId;
 export const HISTORY_SCHEMA_VERSION = 1;   // shape of one `history` entry (P3-09); bump if it changes
 export const SESSION_SCHEMA_VERSION = 1;   // shape of the `session` record (P3-03); bump if it changes
 
+// ---- Backup file (P6-09) --------------------------------------------------
+// SPEC GAP: no spec describes the backup file; this is the smallest shape that holds what `qr:v1:` keeps (see backup.js).
+export const BACKUP_FORMAT = 'quizrunner.backup';   // `format` field of the backup file
+export const BACKUP_VERSION = 1;                    // shape of the backup file; bump if it changes
+
 // ---- Overall rating (RECEIPT_SPEC §2) -----------------------------------
 // Evaluated top to bottom; first band whose `min` <= percent wins.
 export const RATING_BANDS = Object.freeze([
@@ -71,6 +76,12 @@ export const OPTION_LETTERS = Object.freeze(['A', 'B', 'C', 'D']);
 export const MIN_QUESTIONS_PER_TOPIC_INITIAL = 3;
 export const TRUE_FALSE_VALUES = Object.freeze(['True', 'False']);   // `selected` / `answer` values of a `tf` question
 export const DIFFICULTIES = Object.freeze(['easy', 'moderate', 'challenging']);   // QUIZ_PACK_SPEC §3.2
+
+// ---- Resilience (DEV_CHECKLIST P7-01..P7-04) -----------------------------
+// SPEC GAP: the specs give no limits for these; they only keep a bogus pack or a huge error list from producing a huge prompt.
+export const MAX_PACK_QUESTIONS = 1000;          // a larger `meta.total_questions` is treated as unknown (no "missing numbers" list)
+export const REPAIR_MAX_LISTED_ERRORS = 50;      // Repair prompt: problems listed before "...and N more"
+export const PROMPT_LINE_MAX_CHARS = 300;        // Repair prompt: one problem per line, cut at this length (pack text is untrusted)
 
 // ---- Loading (DEV_CHECKLIST P2-01) --------------------------------------
 export const ACCEPTED_FILE_EXTENSIONS = Object.freeze(['.json', '.txt', '.md']);

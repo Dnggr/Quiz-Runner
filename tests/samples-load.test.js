@@ -55,13 +55,13 @@ const EXPECT = {
   'broken/02-trailing-comma.json': { note: 'retry without trailing commas', check: (r) => { assert.ok(canLoad(r)); assert.equal(r.repaired, true); assert.deepEqual(r.warnings, []); }, loads: base3 },
   'broken/09-bom.json': { note: 'BOM stripped', check: (r) => { assert.ok(canLoad(r)); assert.deepEqual(r.warnings, []); }, loads: base3 },
   'broken/03-truncated.json': {
-    note: 'error with a position (Phase 2); salvage is Phase 7',
+    note: 'cut off in Q3: the two complete questions are salvaged, \"Loaded 2 of 3\" (P7-01)',
     check: (r) => {
-      assert.equal(r.kind, 'error');
-      assert.equal(r.error.code, 'invalid_json');
-      assert.equal(r.error.truncated, true);
-      assert.ok(Number.isInteger(r.error.line) && Number.isInteger(r.error.column));
-      assert.match(r.error.message, /cut off/);
+      assert.ok(canLoad(r));
+      assert.deepEqual(r.salvaged, { kept: 2 });
+      assert.deepEqual(r.pack.questions.map((q) => q.number), [1, 2]);
+      assert.equal(r.pack.meta.total_questions, 3);
+      assert.ok(r.warnings.some((w) => w.code === 'count_mismatch'));
     },
   },
   'broken/08-smart-quotes.json': {

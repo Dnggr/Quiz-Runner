@@ -38,7 +38,8 @@ test('P3-10 starting an exam clears every screen that could still hold the pack\
 
 test('P4-09 the receipt screen (it holds answers and explanations) is emptied whenever the app leaves it', () => {
   const main = code('js/main.js');
-  assert.match(main, /if \(route\.name !== 'receipt'\) receiptScreen\.clear\(\);/);
+  // P6-07: the cumulative profile receipt shows on the same screen (route `profilereceipt`), so both routes keep it.
+  assert.match(main, /if \(route\.name !== 'receipt' && route\.name !== 'profilereceipt'\) receiptScreen\.clear\(\);/);
 });
 
 test('P4-09 the receipt export needs a finished exam, exactly like the results screen', () => {

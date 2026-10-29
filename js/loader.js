@@ -6,6 +6,7 @@
 //   strip BOM -> skip code fence / surrounding prose -> extract first top-level {...}
 //   -> JSON.parse -> on failure blank out trailing commas and retry -> else report the error with a position
 // Then: normalizePack (P2-05) -> validatePack (P2-04, validator.js).
+// A reply that was cut off mid-pack is salvaged (P7-01): every complete question object is kept, the cut one is dropped.
 // Plain numbered text (today's Quick Paste input) is detected and returned as kind 'legacy' (P2-03).
 //
 // The LEGACY plain-text parser below is unchanged from Phase 1 (identical to Quiz Runner v1, tag `v1-legacy`).
@@ -342,6 +343,100 @@ export function normalizePack(pack) {
 }
 
 // ===========================================================================
+// Truncation salvage (P7-01)
+// ===========================================================================
+
+/** End offset (exclusive) of the `{...}` that starts at `start`, skipping braces inside strings; -1 if it never closes. */
+function endOfObject(text, start) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return -1;
+}
+
+/** Offset just after the `[` of the top-level `"questions": [` in `text` (which starts with `{`), or -1. */
+function findQuestionsArrayStart(text) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let stringStart = -1;
+  let stringDepth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) { escaped = false; continue; }
+      if (c === '\\') { escaped = true; continue; }
+      if (c !== '"') continue;
+      inString = false;
+      // A property NAME of the top-level object: depth 1 and followed by ":" (a string VALUE is followed by "," or "}").
+      if (stringDepth === 1 && text.slice(stringStart + 1, i) === 'questions') {
+        let j = i + 1;
+        while (j < text.length && ' \t\r\n'.includes(text[j])) j++;
+        if (text[j] === ':') {
+          j++;
+          while (j < text.length && ' \t\r\n'.includes(text[j])) j++;
+          if (text[j] === '[') return j + 1;
+        }
+      }
+      continue;
+    }
+    if (c === '"') { inString = true; stringStart = i; stringDepth = depth; }
+    else if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') depth--;
+  }
+  return -1;
+}
+
+/**
+ * P7-01: a pack whose text stops in the middle (the AI's reply was cut off). Keeps every question object that is complete,
+ * drops the one that was being written, and closes the JSON so it parses like any other pack.
+ * Only call this when the text is known to be cut off (see `describeJsonError`); anything that is not shaped like
+ * `{ ... "questions": [ {..}, {..}, {.. (cut)` returns null and the caller reports the ordinary \"cut off\" error.
+ * @param {string} extractedText  the `{...}` text from `extractJsonObject`
+ * @returns {{ value: any, kept: number, repaired: boolean } | null}
+ */
+export function salvageTruncatedPack(extractedText) {
+  const text = String(extractedText ?? '');
+  if (!text.startsWith('{')) return null;
+  const arrayStart = findQuestionsArrayStart(text);
+  if (arrayStart === -1) return null;
+
+  let pos = arrayStart;
+  let lastEnd = -1;
+  let kept = 0;
+  for (;;) {
+    while (pos < text.length && ' \t\r\n,'.includes(text[pos])) pos++;
+    if (pos >= text.length || text[pos] === ']') break;
+    if (text[pos] !== '{') return null;                 // not a list of question objects: not a plain cut-off
+    const end = endOfObject(text, pos);
+    if (end === -1) break;                              // the question being written when the reply stopped
+    lastEnd = end;
+    kept++;
+    pos = end;
+  }
+  if (kept === 0) return null;
+
+  const parsed = parseJsonTolerant(text.slice(0, lastEnd) + ']}');
+  if (!parsed.ok || !isPlainObject(parsed.value) || !Array.isArray(parsed.value.questions)) return null;
+  return { value: parsed.value, kept: parsed.value.questions.length, repaired: parsed.repaired };
+}
+
+// ===========================================================================
 // Entry point (P2-01 / P2-02 / P2-03)
 // ===========================================================================
 
@@ -363,7 +458,8 @@ export function detectInputKind(raw) {
 
 /**
  * @typedef {{ code: string, message: string, number: number | null, index: number | null }} Issue
- * @typedef {{ kind: 'pack', pack: any, ok: boolean, errors: Issue[], warnings: Issue[], repaired: boolean }
+ * @typedef {{ kind: 'pack', pack: any, ok: boolean, errors: Issue[], warnings: Issue[], repaired: boolean,
+ *                salvaged: { kept: number } | null }
  *         | { kind: 'legacy', questions: ReturnType<typeof parseLegacyText> }
  *         | { kind: 'error', error: { code: 'empty' | 'unrecognized' | 'invalid_json', message: string,
  *                                     line?: number, column?: number, index?: number, truncated?: boolean } }} LoadResult
@@ -372,7 +468,8 @@ export function detectInputKind(raw) {
 /**
  * Turn raw pasted/uploaded text into a result the UI can act on. Never throws.
  *  - kind 'legacy': numbered plain text -> route to Quick Paste (answers only)
- *  - kind 'pack':   parsed + normalized + validated; load only when `ok` (no errors); show `warnings` either way
+ *  - kind 'pack':   parsed + normalized + validated; load only when `ok` (no errors); show `warnings` either way.
+ *                   `salvaged` is set when the text was cut off and only its complete questions were kept (P7-01)
  *  - kind 'error':  nothing usable; `error.message` is ready to show, with a line/column for bad JSON
  * @param {string} raw
  * @returns {LoadResult}
@@ -404,12 +501,19 @@ export function loadInput(raw) {
     return { kind: 'error', error: { code: 'invalid_json', message: 'No JSON object (starting with "{") was found in that text.' } };
   }
 
-  const parsed = parseJsonTolerant(extracted.text);
-  if (!parsed.ok) return { kind: 'error', error: describeJsonError(text, extracted, parsed) };
+  let parsed = parseJsonTolerant(extracted.text);
+  let salvaged = null;
+  if (!parsed.ok) {
+    const error = describeJsonError(text, extracted, parsed);
+    const rescue = error.truncated ? salvageTruncatedPack(extracted.text) : null;
+    if (!rescue) return { kind: 'error', error };
+    parsed = { ok: true, value: rescue.value, repaired: rescue.repaired };
+    salvaged = { kept: rescue.kept };
+  }
 
   const pack = normalizePack(parsed.value);
   const { errors, warnings } = validatePack(pack);
-  return { kind: 'pack', pack, ok: errors.length === 0, errors, warnings, repaired: parsed.repaired };
+  return { kind: 'pack', pack, ok: errors.length === 0, errors, warnings, repaired: parsed.repaired, salvaged };
 }
 
 /** Build the user-facing "invalid JSON" error, with a position in the text the user pasted. */

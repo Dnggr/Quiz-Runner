@@ -42,6 +42,7 @@ const wholeNumber = (text) => (/^\s*\d+\s*$/.test(String(text)) ? Number(text) :
  * }} options
  * @returns {{
  *   enter: () => void, clearReceipt: () => void, prefillTargeted: (receiptText: string) => void,
+ *   prefillRetention: (receiptText: string) => void,
  *   getOptions: () => object, getResult: () => ReturnType<typeof buildPrompt>,
  * }}
  */
@@ -250,8 +251,22 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots, load
    * @param {string} receiptText  a receipt as `buildReceipt` writes it (missed-question detail off, see main.js)
    */
   function prefillTargeted(receiptText) {
-    state.mode = 'targeted';
-    state.count = String(presetCount('targeted'));
+    prefillFromReceipt('targeted', receiptText);
+  }
+
+  /**
+   * P6-11: open the builder as a retention check, with the cumulative profile receipt in the box, so the check draws on every
+   * topic in the history and gives the priority topics an extra question. Retention preset count; the rows start from the
+   * retention rule (1 per topic, 1 extra per priority topic), exactly as for a receipt pasted in retention mode.
+   * @param {string} receiptText  a profile receipt as `prepareProfileReceipt` builds it
+   */
+  function prefillRetention(receiptText) {
+    prefillFromReceipt('retention', receiptText);
+  }
+
+  function prefillFromReceipt(mode, receiptText) {
+    state.mode = mode;
+    state.count = String(presetCount(mode));
     $('pbCount').value = state.count;
     state.receiptText = receiptText;
     $('pbReceiptText').value = receiptText;
@@ -446,6 +461,7 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots, load
     enter: render,
     clearReceipt,
     prefillTargeted,
+    prefillRetention,
     getOptions,
     getResult,
   };

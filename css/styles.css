@@ -513,6 +513,10 @@ button.jump.res-correct,button.jump.res-wrong,button.jump.res-skipped{flex-direc
 .trend-line{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;}
 .trend-dot{fill:var(--card);stroke:var(--accent);stroke-width:2;}
 .trend-dot-selected{fill:var(--accent);}
+.btn-danger{color:var(--danger);border-color:#6b3238;}
+.btn-danger:hover:not(:disabled){border-color:var(--danger);background:#2a1a1f;}
+.exam-badge{font-size:12px;color:var(--text-dim);border:1px solid var(--card-border);border-radius:999px;padding:1px 8px;margin-left:8px;white-space:nowrap;}
+#pgData .row .btn{min-height:48px;}
 
 /* --- Export receipt (P4-09, P4-10) --- */
 .toggle-group{border:1px solid var(--card-border);border-radius:12px;padding:6px 14px 8px;margin:0 0 16px;}

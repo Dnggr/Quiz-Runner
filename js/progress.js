@@ -18,6 +18,7 @@ export const OPEN_PROBLEMS = Object.freeze({
   noAnswers: 'The answers of this exam were not saved.',
   mismatch: 'The stored pack no longer matches this exam (another pack was saved under the same quiz id).',
   unfinished: 'You have an unfinished exam of this quiz. Finish it first, so the answers stay hidden.',
+  imported: 'This exam was imported from a receipt. A receipt does not carry your answers, so it cannot be opened.',
 });
 
 /** `YYYY-MM-DD` of a timestamp in the learner's local time; empty when it is not a date. */
@@ -31,6 +32,7 @@ export const examDate = (takenAt, tzOffsetMinutes = 0) => toOffsetIso(takenAt, t
  * @returns {string | null}  null when it can be opened, else one of `OPEN_PROBLEMS`
  */
 export function openProblem(entry, pack) {
+  if (isPlainObject(entry) && isPlainObject(entry.imported) && (!Array.isArray(entry.outcomes) || entry.outcomes.length === 0)) return OPEN_PROBLEMS.imported;   // P6-08
   if (!isPlainObject(pack) || !Array.isArray(pack.questions) || pack.questions.length === 0) return OPEN_PROBLEMS.noPack;
   if (!isPlainObject(entry) || !Array.isArray(entry.outcomes) || entry.outcomes.length === 0) return OPEN_PROBLEMS.noAnswers;
   if (entry.outcomes.length !== pack.questions.length) return OPEN_PROBLEMS.mismatch;
@@ -60,8 +62,8 @@ export function openPastExam(store, id, { lockedQuizId = null } = {}) {
 /**
  * @typedef {{
  *   id: string, quizId: string, title: string, subject: string, takenAt: string, date: string,
- *   correct: number, total: number, percent: number, rating: string, canOpen: boolean, reason: string,
- * }} ExamRow
+ *   correct: number, total: number, percent: number, rating: string, canOpen: boolean, reason: string, imported: boolean,
+ * }} ExamRow   `imported`: added from a receipt (P6-08), not taken on this device
  */
 
 /**
@@ -92,6 +94,7 @@ export function buildProgress(store, { tzOffsetMinutes = 0, compareId = null, lo
   };
   const snapshots = [];
   const openState = new Map();   // snapshot id -> reason it cannot be opened ('' when it can)
+  const importedIds = new Set();   // snapshot ids of exams that came from a receipt
   for (const entry of entries) {
     const pack = typeof entry.quiz_id === 'string' ? readPack(entry.quiz_id) : null;
     const snapshot = snapshotFromHistoryEntry(entry, pack);
@@ -99,13 +102,14 @@ export function buildProgress(store, { tzOffsetMinutes = 0, compareId = null, lo
     snapshots.push(snapshot);
     const locked = lockedQuizId !== null && snapshot.quiz_id === lockedQuizId;
     openState.set(snapshot.id, locked ? OPEN_PROBLEMS.unfinished : openProblem(entry, pack) ?? '');
+    if (isPlainObject(entry.imported)) importedIds.add(snapshot.id);
   }
 
   const newestFirst = sortSnapshots(snapshots).reverse();
   const exams = newestFirst.map((s) => ({
     id: s.id, quizId: s.quiz_id, title: s.title, subject: s.subject, takenAt: s.taken_at, date: examDate(s.taken_at, tzOffsetMinutes),
     correct: s.correct, total: s.total, percent: s.percent, rating: s.rating,
-    canOpen: openState.get(s.id) === '', reason: openState.get(s.id) ?? '',
+    canOpen: openState.get(s.id) === '', reason: openState.get(s.id) ?? '', imported: importedIds.has(s.id),
   }));
   if (exams.length === 0) return empty;
 

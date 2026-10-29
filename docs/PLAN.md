@@ -83,6 +83,10 @@ The user asked for three things; each maps to one feature:
 | D8 | Stack: vanilla **ES modules, no build** | Deploys exactly as today on Vercel | Vite + TypeScript later if the code outgrows it |
 | D9 | Topics are tracked across exams by **normalized topic name** | The AI creates topic ids per pack, so ids can differ between exams | Prompt Builder forces the AI to reuse the exact topic names/ids from the receipt |
 | D10 | Concept map lives in `meta.topics` and is shown in-app | Keeps the AI's reply to a single copyable file | AI shows an outline in chat first (messier to copy) |
+| D11 | **Proposed (P7), awaiting owner approval.** A pack with missing questions (cut off, or only some parts) can still start an exam | `QUIZ_PACK_SPEC` §7 makes a count mismatch a warning, not an error | Block Start until the pack is complete |
+| D12 | **Proposed (P7).** A loaded pack is merged with the one waiting on the Topics preview when `quiz_id` matches; later wins per question and per `meta` field; topics are the union; merged `part`/`total_parts` = 1/1; held in memory only | Spec says "merge by `quiz_id` and `number`, later wins" but not these details | Persist the held parts in storage; ask before overwriting |
+| D13 | **Proposed (P7).** Continue prompt: the spec template when the missing numbers are a tail; a second wording (`PROMPT_TEMPLATES.md`) for numbers missing at the start or in the middle | The template only describes "questions 1-K received" | Always ask "from the first missing number to the end" |
+| D14 | **Proposed (P7).** Repair prompt lists at most 50 problems, each cut at 300 characters; `total_questions` above 1000 counts as unknown | Spec gives no limits; keeps a bogus pack from making a huge prompt | No caps |
 
 ## 6. Screens
 
@@ -118,10 +122,12 @@ quiz-runner/
 │  ├─ loader.js          tolerant parse, salvage, legacy text parser
 │  ├─ validator.js       pack validation (errors vs warnings), groupIssues for the error screen
 │  ├─ packsummary.js     pure: loaded pack → data for the Topics preview
+│  ├─ parts.js           pure: what is missing from a pack ("Loaded 97 of 130"), merging the parts of one `quiz_id`, "Parts loaded: 2 of 3"
 │  ├─ exam.js            pure: response model, "Not sure" rule, progress counts, answer-free exam questions
 │  ├─ session.js         pure: in-progress exam record (build / validate / save / load via store.js)
 │  ├─ review.js          pure: graded outcomes + pack → Review items, filter chips, counts
-│  ├─ history.js         pure: save a graded exam to `history` and `pack:<quiz_id>` via store.js
+│  ├─ history.js         pure: save a graded exam to `history` and `pack:<quiz_id>` via store.js; import a receipt, delete one exam, clear all, build the profile receipt (via store.js)
+│  ├─ backup.js          pure: full backup file and restore (merge) via store.js
 │  ├─ grader.js          pure: pack + responses → result
 │  ├─ analytics.js       pure: topic stats, status, rating, next-exam allocation, history
 │  ├─ receipt.js         pure: result → markdown + json; receipt import

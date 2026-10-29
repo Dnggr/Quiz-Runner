@@ -126,14 +126,26 @@ test('Windows line endings and a BOM together', () => {
 
 // ---------------------------------------------------------------- loadInput: error reports
 
-test('truncated pack (03): clear "cut off" error with a position, no crash', () => {
+test('truncated pack (03): the complete questions are salvaged (P7-01), no crash', () => {
   const res = loadInput(readSample('broken', '03-truncated.json'));
+  assert.equal(res.kind, 'pack');
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.salvaged, { kept: 2 });
+  assert.equal(res.pack.questions.length, 2);
+});
+
+test('truncated before any question is complete: clear "cut off" error with a position, no crash', () => {
+  // The same sample, cut a few characters into Q1. The reported line is the last line of the text that was received.
+  const text = readSample('broken', '03-truncated.json');
+  const cut = text.slice(0, text.indexOf('"number": 1') + 12);
+  const lastLine = cut.split('\n').length;
+  const res = loadInput(cut);
   assert.equal(res.kind, 'error');
   assert.equal(res.error.code, 'invalid_json');
   assert.equal(res.error.truncated, true);
-  assert.equal(res.error.line, 8);
+  assert.equal(res.error.line, lastLine);
   assert.match(res.error.message, /cut off/);
-  assert.match(res.error.message, /line 8/);
+  assert.match(res.error.message, new RegExp(`line ${lastLine}`));
 });
 
 test('smart quotes (08): error at line 2 column 3, with a curly-quote hint', () => {

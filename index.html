@@ -36,6 +36,10 @@ D. To prevent devices from communicating with one another
 
 37. True or False: A device can have both a MAC address and an IP address."></textarea>
     <div class="drop-hint" id="dropHint">Drop the file to load it</div>
+    <div class="ok-box" id="holdingNote" role="status">
+      <div id="holdingText"></div>
+      <button class="btn" id="holdingDiscardBtn" type="button" style="width:100%;margin-top:10px;">Discard what is loaded</button>
+    </div>
     <div class="error-box" id="parseError" role="alert"></div>
     <button class="btn btn-primary" id="loadBtn" style="width:100%;margin-top:16px;">Load Questions</button>
     <button class="btn" id="fileBtn" style="width:100%;margin-top:10px;">Choose a file…</button>
@@ -50,6 +54,15 @@ D. To prevent devices from communicating with one another
     <div class="subtitle" id="problemsSummary" role="alert"></div>
     <div class="error-box" id="problemsNote"></div>
     <div id="problemsList"></div>
+    <div id="repairBox" hidden>
+      <h2>Ask the AI to fix it</h2>
+      <div class="field-help">Paste this into the same chat. It lists the problems above and asks for the corrected file.</div>
+      <button class="btn btn-primary" id="repairCopyBtn" type="button" style="width:100%;margin-top:10px;">Copy repair prompt</button>
+      <div class="copied-msg" id="repairMsg" role="status"></div>
+      <details class="warn-details"><summary>Show the prompt</summary>
+        <textarea id="repairPrompt" class="pb-small" readonly aria-label="Repair prompt"></textarea>
+      </details>
+    </div>
     <div class="note">To fix this, ask the AI to correct these questions and send the complete pack again, or edit the file yourself and load it again. If you pasted the pack, it is still in the box on the load screen.</div>
     <button class="btn btn-primary" id="problemsBackBtn" style="width:100%;margin-top:16px;">Back to the load screen</button>
   </div>
@@ -61,6 +74,19 @@ D. To prevent devices from communicating with one another
     <div class="pill-row" id="previewCounts"></div>
     <div class="ok-box" id="previewNotice" role="status"></div>
     <div class="warn-box" id="previewWarnings" role="status"></div>
+    <div class="warn-box" id="previewPartial" role="status">
+      <div class="warn-title" id="partialTitle"></div>
+      <div id="partialParts"></div>
+      <div id="partialDetail"></div>
+      <div class="row">
+        <button class="btn btn-primary" id="partialCopyBtn" type="button">Copy continue prompt</button>
+        <button class="btn" id="partialAddBtn" type="button">Add more questions</button>
+      </div>
+      <div class="copied-msg" id="partialMsg" role="status"></div>
+      <details class="warn-details" id="partialPromptWrap"><summary>Show the continue prompt</summary>
+        <textarea id="partialPrompt" class="pb-small" readonly aria-label="Continue prompt"></textarea>
+      </details>
+    </div>
 
     <h2>Topics covered</h2>
     <div id="topicList"></div>
@@ -135,7 +161,7 @@ D. To prevent devices from communicating with one another
     </div>
   </div>
 
-  <!-- SCREEN: PROGRESS (P6-01..P6-06). Everything here comes from the history stored on this device; no answers are shown. -->
+  <!-- SCREEN: PROGRESS (P6-01..P6-11). Everything here comes from the history stored on this device; no answers are shown. -->
   <div class="screen" id="screen-progress">
     <h1>Progress</h1>
     <div class="subtitle">Your exams on this device.</div>
@@ -158,6 +184,28 @@ D. To prevent devices from communicating with one another
       <h2>Topic mastery</h2>
       <div id="pgMastery"></div>
     </div>
+
+    <!-- P6-07..P6-11. Outside #pgBody on purpose: restoring a backup or clearing damaged data must work with an empty or unreadable history. -->
+    <section id="pgData" aria-labelledby="pgDataTitle">
+      <h2 id="pgDataTitle">Your data</h2>
+      <div class="note">Everything stays on this device. Download a backup now and then: if the browser clears its data, a backup brings your history back.</div>
+      <div class="row">
+        <button class="btn" id="pgProfileBtn" type="button">Export profile receipt</button>
+        <button class="btn" id="pgRetentionBtn" type="button">Retention check prompt</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="pgImportBtn" type="button">Import receipt…</button>
+        <button class="btn" id="pgBackupBtn" type="button">Download backup</button>
+        <button class="btn" id="pgRestoreBtn" type="button">Restore backup…</button>
+      </div>
+      <input type="file" id="pgImportInput" accept=".json,.md,.txt,application/json,text/plain,text/markdown" hidden>
+      <input type="file" id="pgRestoreInput" accept=".json,application/json" hidden>
+      <div class="error-box" id="pgDataError" role="alert"></div>
+      <div class="warn-box" id="pgDataWarn" role="status"></div>
+      <div class="ok-box" id="pgDataOk" role="status"></div>
+      <div class="note">Restoring adds what this device is missing and never deletes anything. To make this device match a backup exactly, clear all data first.</div>
+      <button class="btn btn-danger" id="pgClearBtn" type="button" style="width:100%;margin-top:16px;">Clear all data</button>
+    </section>
 
     <button class="btn" id="pgBackBtn" type="button" style="width:100%;margin-top:24px;">Back to start</button>
   </div>
@@ -215,8 +263,8 @@ D. To prevent devices from communicating with one another
 
     <fieldset class="toggle-group">
       <legend>Include in the receipt</legend>
-      <label class="toggle"><input type="checkbox" id="rcOptMissed" checked><span><span class="toggle-title">Missed-question detail</span><span class="toggle-help">Each missed question with your answer, the correct one and why</span></span></label>
-      <label class="toggle"><input type="checkbox" id="rcOptHistory" checked><span><span class="toggle-title">Cumulative history</span><span class="toggle-help">Your earlier exams, priority topics and what improved</span></span></label>
+      <label class="toggle" id="rcRowMissed"><input type="checkbox" id="rcOptMissed" checked><span><span class="toggle-title">Missed-question detail</span><span class="toggle-help">Each missed question with your answer, the correct one and why</span></span></label>
+      <label class="toggle" id="rcRowHistory"><input type="checkbox" id="rcOptHistory" checked><span><span class="toggle-title">Cumulative history</span><span class="toggle-help">Your earlier exams, priority topics and what improved</span></span></label>
       <label class="toggle"><input type="checkbox" id="rcOptConcepts" checked><span><span class="toggle-title">Covered concepts</span><span class="toggle-help">So the next quiz does not repeat them</span></span></label>
       <label class="toggle"><input type="checkbox" id="rcOptFormat" checked><span><span class="toggle-title">Next-quiz format instructions</span><span class="toggle-help">Lets any AI write the next quiz in a format this app can load</span></span></label>
     </fieldset>

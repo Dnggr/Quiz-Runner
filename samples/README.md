@@ -15,7 +15,7 @@ Every broken file is the same 3-question base pack (Q1 topic `t1`; Q2 and Q3 top
 |---|---|---|
 | `01-code-fenced.json` | JSON wrapped in a ```` ```json ```` fence | Loads (fence stripped) |
 | `02-trailing-comma.json` | Trailing comma after `notes` and after the last question | Loads (retry without trailing commas) |
-| `03-truncated.json` | Cut off in the middle of Q3 | Phase 2: error with position. Phase 7: salvage, "Loaded 2 of 3" |
+| `03-truncated.json` | Cut off in the middle of Q3 | Loads with Q1 and Q2 (salvage, P7-01): "Loaded 2 of 3", a count warning, and a Continue prompt for question 3 |
 | `04-missing-answer.json` | Q3 has no `answer` | Error: Q3 missing `answer` |
 | `05-answer-not-in-options.json` | Q2 answer is `"E"` | Error: Q2 answer not among options |
 | `06-duplicate-numbers.json` | Q3 is numbered 2 | Error: duplicate question number 2 |

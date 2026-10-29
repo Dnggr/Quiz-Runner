@@ -19,7 +19,9 @@ const TOGGLES = {
 /**
  * @param {{ onBack: () => void, onNextPrompt?: () => void }} options
  * @returns {{
- *   show: (info: { title: string, build: (options: object) => { markdown: string, json: string, receiptId: string } }) => void,
+ *   show: (info: { title: string, build: (options: object) => { markdown: string, json: string, receiptId: string },
+ *     profile?: boolean }) => void,   `profile` (P6-07): the cumulative profile receipt, which has no missed-question detail and
+ *                                      always has the history, so those two toggles are hidden and the buttons are renamed
  *   clear: () => void,
  * }}
  */
@@ -90,10 +92,14 @@ export function initReceiptScreen({ onBack, onNextPrompt = () => {} }) {
     for (const id of ['rcSubtitle', 'rcPreview', 'rcSize', 'rcMsg']) $(id).textContent = '';
   }
 
-  function show({ title, build: builder }) {
+  function show({ title, build: builder, profile = false }) {
     clear();
     build = builder;
     for (const [key, id] of Object.entries(TOGGLES)) $(id).checked = DEFAULT_RECEIPT_OPTIONS[key];
+    $('rcRowMissed').hidden = profile;
+    $('rcRowHistory').hidden = profile;
+    $('rcBackBtn').textContent = profile ? 'Back to progress' : 'Back to results';
+    $('rcNextPromptBtn').textContent = profile ? 'Retention check prompt' : 'Next quiz prompt';
     $('rcSubtitle').textContent = title || 'Your graded exam';
     render();
   }

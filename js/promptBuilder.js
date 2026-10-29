@@ -10,7 +10,10 @@
 import {
   SPEC_VERSION, DEFAULT_COUNTS, DEFAULT_TOPIC_RANGE, DEFAULT_DIFFICULTY_PCT, DEFAULT_PART_SIZE, DEFAULT_LEARNER, SKILLS,
   DIFFICULTY_MIX_BY_GROUP, NEXT_EXAM_MIN_N, NEXT_EXAM_MAX_N, STATUS_ORDER, MIN_QUESTIONS_PER_TOPIC_INITIAL,
+  MAX_PACK_QUESTIONS, REPAIR_MAX_LISTED_ERRORS, PROMPT_LINE_MAX_CHARS,
 } from './constants.js';
+import { groupIssues } from './validator.js';
+import { formatRanges } from './parts.js';
 import { buildFormatSpec, nextQuizId, nextQuizNumber, findEmbeddedJson, RECEIPT_END } from './receipt.js';
 import { allocateNextExam, largestRemainder, normalizeName } from './analytics.js';
 
@@ -126,6 +129,20 @@ Do not reveal or discuss the answers in the chat. Deliver the exam in {{total_pa
 - Otherwise reply with a single code block containing only the JSON.`,
 
   selfCheck: `BEFORE YOU REPLY, silently check: the number of questions is exactly {{count}} (or the part's share); topics all exist in "meta.topics" and each has at least 3 questions (initial exam only); correct letters are spread across A-D; no question copies a sentence from my files; everything comes from my files; the JSON is valid. Fix any problem first, then send.`,
+
+  // ---- Phase 7: the two prompts the app writes for you when a pack is broken or incomplete (P7-02, P7-03) ----
+  repair: `The quiz file you gave me could not be loaded. Here are the problems found:
+
+{{error_list}}
+
+Please send the corrected file again, in the same format (Quiz Pack v{{spec_version}}), as a single downloadable file or one code block containing only the JSON. Fix only these problems and keep everything else the same. Do not reveal answers in the chat.`,
+
+  continue: `Your last reply was cut off or incomplete. I received questions 1-{{last_loaded}} of {{total}}.
+Continue from question {{last_loaded_plus_1}} to {{total}}. Use the same quiz pack format with the same "meta" (same quiz_id, total_questions, and topics) and include only the questions from {{last_loaded_plus_1}} onward, numbered as in the original plan. Output only the JSON as a downloadable file or one code block. Do not reveal answers in the chat.`,
+
+  // SPEC GAP: the Continue prompt above only fits a missing TAIL (1..K received). This variant covers numbers missing at the start or in the middle.
+  continueMissing: `Your last reply was incomplete. I received {{loaded}} of {{total}} questions. These question numbers are still missing: {{missing_ranges}}.
+Send only the missing questions. Use the same quiz pack format with the same "meta" (same quiz_id, total_questions, and topics), numbered as in the original plan. Output only the JSON as a downloadable file or one code block. Do not reveal answers in the chat.`,
 });
 
 // ============================================================================================================
@@ -519,5 +536,66 @@ export function buildPrompt(raw, { snapshots = [] } = {}) {
     ok: true, errors: [], warnings,
     prompt: blocks.join('\n\n') + '\n',
     meta: { mode, quizId, quizNumber, count, totalParts, specVersion: SPEC_VERSION },
+  };
+}
+
+// ============================================================================================================
+// Repair prompt and Continue prompt (P7-03, P7-02)
+// ============================================================================================================
+
+/** One problem as one short line: pack text is untrusted and can hold line breaks or be very long. */
+function promptLine(message) {
+  const text = oneLine(message);
+  return text.length > PROMPT_LINE_MAX_CHARS ? `${text.slice(0, PROMPT_LINE_MAX_CHARS - 1)}…` : text;
+}
+
+/**
+ * P7-03: the Repair prompt, built from the validator's error list (`errors` of a loadInput result).
+ * Problems are listed in the order of the error screen (pack-level first, then by question number), one per line.
+ * SPEC GAP: no limit is specified; at most REPAIR_MAX_LISTED_ERRORS lines are listed, then "...and N more problems."
+ * @param {{ message: string, number: number | null, index: number | null }[]} errors
+ * @returns {{ ok: boolean, prompt: string, listed: number, total: number }}  `prompt` is empty when there are no errors
+ */
+export function buildRepairPrompt(errors) {
+  const list = Array.isArray(errors) ? errors.filter((e) => isPlainObject(e) && oneLine(e.message) !== '') : [];
+  if (list.length === 0) return { ok: false, prompt: '', listed: 0, total: 0 };
+  const grouped = groupIssues(list);
+  const ordered = [...grouped.pack, ...grouped.questions.flatMap((g) => g.issues)];
+  const lines = ordered.slice(0, REPAIR_MAX_LISTED_ERRORS).map((e) => `- ${promptLine(e.message)}`);
+  const hidden = ordered.length - lines.length;
+  if (hidden > 0) lines.push(`- …and ${plural(hidden, 'more problem', 'more problems')}.`);
+  return {
+    ok: true,
+    prompt: fill(TEMPLATES.repair, { error_list: lines.join('\n'), spec_version: SPEC_VERSION }) + '\n',
+    listed: ordered.length - Math.max(0, hidden),
+    total: ordered.length,
+  };
+}
+
+/**
+ * P7-02: the Continue prompt, built from the question numbers that have not arrived.
+ *  - missing numbers are the tail `K+1..total` after questions 1..K (a cut-off reply): the template of PROMPT_TEMPLATES.
+ *  - anything else (numbers missing at the start or in the middle, e.g. part 2 of 3 loaded first): the "missing numbers" variant.
+ * @param {{ total: number | null, missing: number[] }} input  from `completeness` (parts.js)
+ * @returns {{ ok: boolean, prompt: string, variant: 'tail' | 'ranges' | null }}
+ */
+export function buildContinuePrompt({ total, missing } = {}) {
+  const none = { ok: false, prompt: '', variant: null };
+  if (!Number.isInteger(total) || total < 1 || total > MAX_PACK_QUESTIONS || !Array.isArray(missing)) return none;
+  const sorted = [...new Set(missing)].sort((a, b) => a - b);
+  if (sorted.length === 0 || !sorted.every((n) => Number.isInteger(n) && n >= 1 && n <= total)) return none;
+
+  const lastLoaded = sorted[0] - 1;
+  if (lastLoaded >= 1 && sorted.length === total - lastLoaded) {
+    return {
+      ok: true,
+      variant: 'tail',
+      prompt: fill(TEMPLATES.continue, { last_loaded: lastLoaded, total, last_loaded_plus_1: lastLoaded + 1 }) + '\n',
+    };
+  }
+  return {
+    ok: true,
+    variant: 'ranges',
+    prompt: fill(TEMPLATES.continueMissing, { loaded: total - sorted.length, total, missing_ranges: formatRanges(sorted) }) + '\n',
   };
 }
