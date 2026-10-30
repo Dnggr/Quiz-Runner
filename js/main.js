@@ -10,6 +10,7 @@ import { initReceiptScreen } from './ui/receiptscreen.js';
 import { initResume } from './ui/resume.js';
 import { initPromptBuilder } from './ui/promptbuilder.js';
 import { initProgress } from './ui/progress.js';
+import { createNotices } from './ui/notice.js';
 import { store } from './store.js';
 import { toExamQuestions } from './exam.js';
 import { gradeExam } from './grader.js';
@@ -24,6 +25,7 @@ import { buildSession, saveSession, loadSession, clearSession, describeSession }
 import { loadPromptSettings, savePromptSettings } from './settings.js';
 import { buildProgress, openPastExam, examDate } from './progress.js';
 import { addToAssembly, assemblyStatus, describeAddition, formatRanges } from './parts.js';
+import { scanStoredData, resetStoredKey, damagedText, describeStorageFailure, prunablePacks, pruneOldestPack } from './storagehealth.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -43,6 +45,9 @@ const SCREEN_IDS = {
   past: 'screen-results',   // an old exam, read-only (P6-02): the Results screen again, filled from storage
 };
 const HOME = 'input';
+
+// Notices at the top of the page: storage full (P7-05), damaged saved data (P7-07), a screen that failed.
+const notices = createNotices($('noticeHost'));
 
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
@@ -99,7 +104,9 @@ const router = createRouter({
     }
     return null;
   },
-  onRoute: (route) => {
+  onRoute: (route) => guarded(() => {
+    settleStorageNotice();
+    if (route.name === HOME || route.name === 'progress') checkStoredData();
     showScreen(route.name);
     quickPaste.enter(route.name);
     if (route.name === 'exam') mountExam();
@@ -117,7 +124,7 @@ const router = createRouter({
     if (route.name !== 'results' && route.name !== 'past') results.clear();
     // The receipt export holds answers and explanations too (P4-09): same rule.
     if (route.name !== 'receipt' && route.name !== 'profilereceipt') receiptScreen.clear();
-  },
+  }),
 });
 
 quickPaste = initQuickPaste(router);
@@ -307,6 +314,7 @@ function startExam() {
   current = buildSession(packResult.pack);
   saveFailed = false;
   saveSession(store, current);
+  checkStoredData();   // a damaged saved exam was just replaced by this one: its notice goes
   // P3-10: nothing from the pack may stay in the DOM while the exam runs, hidden screens included.
   // The paste box can still hold pack text, the Topics preview can hold warnings about the answer letters,
   // the error screen can quote answers, and the Results screen can hold the previous exam's review.
@@ -395,16 +403,25 @@ function downloadText(fileName, mime, text) {
   URL.revokeObjectURL(url);
 }
 
-/** P6-09: download everything worth keeping as one file. */
-function downloadBackup() {
+/** P6-09: build the backup and start its download. Also used by the storage notice (P7-05). */
+function runBackupDownload() {
   const now = new Date();
   const backup = buildBackup(store, { now, tzOffsetMinutes: -now.getTimezoneOffset() });
-  if (!backup.ok) { progress.report({ ok: false, error: backup.error }); return; }
-  downloadText(backup.fileName, 'application/json', backup.text);
-  progress.report({
+  if (!backup.ok) return { ok: false, error: backup.error };
+  try {
+    downloadText(backup.fileName, 'application/json', backup.text);
+  } catch {
+    return { ok: false, error: 'The browser would not start the download.' };
+  }
+  return {
     ok: true, warnings: backup.warnings,
     message: `Downloaded ${backup.fileName}: ${backup.exams} ${backup.exams === 1 ? 'exam' : 'exams'} and ${backup.packs} question ${backup.packs === 1 ? 'pack' : 'packs'}. Keep it somewhere safe.`,
-  });
+  };
+}
+
+/** P6-09: download everything worth keeping as one file. */
+function downloadBackup() {
+  progress.report(runBackupDownload());
 }
 
 /** P6-09: merge a backup file into this device. */
@@ -503,4 +520,180 @@ function mountReceipt() {
   });
 }
 
-router.start();
+// ---------------------------------------------------------------------------------------------------------
+// P7-05: the browser has no room (or refuses) to save
+// ---------------------------------------------------------------------------------------------------------
+const failedKeys = new Set();          // what did not reach storage since the notice was last cleared
+let failureReason = null;              // the worst reason seen: quota > blocked > unavailable
+let storageNoticeDismissed = false;
+let backupDownloaded = false;
+const REASON_RANK = { unavailable: 0, blocked: 1, quota: 2 };
+
+store.onWriteFailure(({ key, reason }) => {
+  const isNew = !failedKeys.has(key);
+  failedKeys.add(key);
+  if (failureReason === null || REASON_RANK[reason] > REASON_RANK[failureReason]) failureReason = reason;
+  if (storageNoticeDismissed && !isNew) return;   // dismissed: autosave failing again must not nag on every answer
+  storageNoticeDismissed = false;
+  showStorageNotice();
+});
+
+function showStorageNotice(status = '') {
+  const info = describeStorageFailure({ reason: failureReason, keys: [...failedKeys] });
+  const actions = [{ label: 'Download backup', primary: true, onClick: () => {
+    const res = runBackupDownload();
+    backupDownloaded = res.ok;
+    showStorageNotice(res.ok ? res.message : `The backup failed: ${res.error}`);
+  } }];
+  if (info.canMakeRoom) actions.push({ label: 'Make room: remove oldest saved questions\u2026', onClick: makeRoom });
+  actions.push({ label: 'Dismiss', onClick: () => { storageNoticeDismissed = true; notices.hide('storage'); } });
+  notices.show('storage', { tone: 'warn', title: info.title, message: status ? `${info.message}\n\n${status}` : info.message, actions });
+}
+
+/** Everything that was waiting got saved some other way (e.g. an exam was deleted): the notice has nothing left to say. */
+function settleStorageNotice() {
+  if (failedKeys.size === 0 || store.pendingKeys().length > 0) return;
+  failedKeys.clear();
+  failureReason = null;
+  backupDownloaded = false;
+  notices.hide('storage');
+}
+
+/** P7-05: remove the oldest saved pack after asking, then save what was waiting. The backup is offered first, not forced. */
+function makeRoom() {
+  const plan = prunablePacks(store);
+  if (!plan.ok || plan.packs.length === 0) { showStorageNotice(pruneOldestPack(store).error); return; }
+  const label = plan.packs[0].title || plan.packs[0].quizId;
+  const noBackup = backupDownloaded ? '' : '\n\nYou have not downloaded a backup yet. Cancel and use \u201cDownload backup\u201d first if you might want these questions back.';
+  if (!confirm(`Remove the saved questions of \u201c${label}\u201d?\n\nIts score and date stay in your history, but you will no longer be able to open it for review, and it stops counting toward topic progress. This cannot be undone.${noBackup}`)) return;
+  const res = pruneOldestPack(store);
+  if (!res.ok) { showStorageNotice(res.error); return; }
+  store.flush();
+  if (router.current?.name === 'progress') mountProgress();
+  const freed = `Removed the saved questions of \u201c${res.title}\u201d (about ${Math.max(1, Math.round(res.freedChars / 1024))} KB).`;
+  if (store.pendingKeys().length === 0) {
+    failedKeys.clear();
+    failureReason = null;
+    backupDownloaded = false;
+    notices.show('storage', { tone: 'ok', title: 'Room made', message: `${freed} Everything that was waiting has been saved.`,
+      actions: [{ label: 'Dismiss', onClick: () => notices.hide('storage') }] });
+  } else {
+    showStorageNotice(`${freed} There is still not enough room.${res.remaining > 0 ? ' You can remove the next oldest.' : ''}`);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// P7-07: damaged saved data, and a screen that fails
+// ---------------------------------------------------------------------------------------------------------
+const dismissedDamage = new Set();
+
+/** Look for a saved exam or history that cannot be used; offer a reset for each. Cheap enough to run on every Home visit. */
+function checkStoredData() {
+  const scan = scanStoredData(store);
+  if (scan.session.state === 'unusable' && !dismissedDamage.has('bad-session')) {
+    notices.show('bad-session', {
+      tone: 'warn',
+      title: 'Your saved exam can\u2019t be resumed',
+      message: 'The exam that was in progress in this browser is damaged, so it can\u2019t be continued. Your finished exams are not affected. Nothing has been deleted yet: you can discard it and start again.',
+      actions: [
+        { label: 'Discard it', danger: true, onClick: discardDamagedSession },
+        { label: 'Not now', onClick: () => { dismissedDamage.add('bad-session'); notices.hide('bad-session'); } },
+      ],
+    });
+  } else if (scan.session.state !== 'unusable') {
+    notices.hide('bad-session');
+  }
+  if (scan.history.state === 'unusable' && !dismissedDamage.has('bad-history')) {
+    notices.show('bad-history', {
+      tone: 'warn',
+      title: 'Your saved history can\u2019t be read',
+      message: 'The history stored in this browser is damaged, so finished exams can\u2019t be listed or added to it until it is reset. Nothing has been deleted yet, and your saved questions and settings are not affected. After a reset you can import a backup or receipts.',
+      actions: [
+        { label: 'Download the damaged data', onClick: downloadDamagedHistory },
+        { label: 'Reset history\u2026', danger: true, onClick: resetDamagedHistory },
+        { label: 'Not now', onClick: () => { dismissedDamage.add('bad-history'); notices.hide('bad-history'); } },
+      ],
+    });
+  } else if (scan.history.state !== 'unusable') {
+    notices.hide('bad-history');
+  }
+  return scan;
+}
+
+function showDone(title, message) {
+  notices.show('done', { tone: 'ok', title, message, actions: [{ label: 'Dismiss', onClick: () => notices.hide('done') }] });
+}
+
+function downloadDamagedHistory() {
+  const text = damagedText(store, 'history');
+  if (text === null) { showDone('Nothing to download', 'The history can no longer be read as damaged data.'); return; }
+  try {
+    downloadText('quiz-runner-damaged-history.txt', 'text/plain', text);
+  } catch {
+    showDone('Download failed', 'The browser would not start the download.');
+  }
+}
+
+function resetDamagedHistory() {
+  if (!confirm('Reset your saved history?\n\nThe stored history is damaged and cannot be used here. This removes it from this browser. Your saved questions and settings stay. It cannot be undone: download the damaged data first if you want to keep a copy, and import a backup or receipts afterwards.')) return;
+  const res = resetStoredKey(store, 'history');
+  if (!res.ok) { showDone('Could not reset', res.error); return; }
+  dismissedDamage.delete('bad-history');
+  notices.hide('bad-history');
+  if (router.current?.name === 'progress') mountProgress();
+  showDone('History reset', 'The damaged history was removed. New exams are saved again.');
+}
+
+function discardDamagedSession() {
+  if (!confirm('Discard the damaged exam that was in progress?\n\nIt cannot be resumed. Your finished exams are not affected. This cannot be undone.')) return;
+  current = null;
+  const res = resetStoredKey(store, 'session');
+  if (!res.ok) { showDone('Could not discard it', res.error); return; }
+  dismissedDamage.delete('bad-session');
+  notices.hide('bad-session');
+  resume.show(unfinishedInfo());
+  showDone('Exam discarded', 'The damaged exam was removed. You can start a new one.');
+}
+
+let goingHome = false;
+
+/** A screen failed to build or an event handler threw: say so and go to the start screen, instead of a blank page. */
+function reportCrash(error) {
+  console.error(error);
+  notices.show('crash', {
+    tone: 'error',
+    title: 'Something went wrong',
+    message: 'Quiz Runner hit an unexpected problem, most likely because some saved data is damaged. Nothing has been deleted.',
+    actions: [
+      { label: 'Back to start', primary: true, onClick: () => { notices.hide('crash'); router.navigate(HOME); } },
+      { label: 'Check saved data', onClick: () => {
+        const scan = checkStoredData();
+        if (scan.session.state !== 'unusable' && scan.history.state !== 'unusable') {
+          showDone('Saved data looks fine', 'The saved exam and history can be read. If this keeps happening, download a backup from the Progress screen and reload the page.');
+        }
+      } },
+      { label: 'Reload the page', onClick: () => window.location.reload() },
+    ],
+  });
+  if (goingHome || router.current?.name === HOME) return;   // never loop if the start screen is what fails
+  goingHome = true;
+  try { router.navigate(HOME, { replace: true }); } catch (err) { console.error(err); } finally { goingHome = false; }
+}
+
+function guarded(fn) {
+  try { fn(); } catch (error) { reportCrash(error); }
+}
+
+// Errors that escape a handler (a click, a timer, a promise) are shown too, but only our own: a browser extension's
+// error must not scare anyone.
+window.addEventListener('error', (event) => {
+  if (event.error instanceof Error && String(event.filename).includes('/js/')) reportCrash(event.error);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  if (event.reason instanceof Error) reportCrash(event.reason);
+});
+
+guarded(() => {
+  checkStoredData();
+  router.start();
+});

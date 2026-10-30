@@ -1,8 +1,9 @@
-// Phase 7 — Resilience: P7-01 truncation salvage · P7-02 Continue prompt · P7-03 Repair prompt · P7-04 multi-part merge.
+// Phase 7 — Resilience: P7-01 truncation salvage · P7-02 Continue prompt · P7-03 Repair prompt · P7-04 multi-part merge ·
+// P7-06 large paste performance (the storage side, P7-05 and P7-07, is in storage-resilience.test.js).
 // Pure logic only (loader.js, parts.js, promptBuilder.js, validator.js); the screens are DOM code.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadInput, salvageTruncatedPack } from '../js/loader.js';
+import { loadInput, salvageTruncatedPack, removeTrailingCommas } from '../js/loader.js';
 import { validatePack } from '../js/validator.js';
 import {
   completeness, formatRanges, mergePacks, sameQuiz, addToAssembly, assemblyStatus, describeAddition,
@@ -538,4 +539,129 @@ test('P7-04 sample-pack.json loaded twice is the same pack, not 20 questions', (
   const step = addToAssembly(addToAssembly(null, first).assembly, second);
   assert.equal(step.result.pack.questions.length, 10);
   assert.deepEqual(step.result.warnings, first.warnings);
+});
+
+// ============================================================================================================
+// P7-06 Large paste performance
+// ============================================================================================================
+// The target is "a 130-question pack loads in under 1 s on a mid-range phone". There is no phone in `node --test`, so the
+// budgets below are for the machine running the tests, set about 10x above what the code needs and about 10x below the
+// target: a phone that is 10x slower than a development machine still loads in about a second. The best of several runs is
+// timed, so one slow moment on a busy machine cannot fail the test. The parse-and-validate path is what is timed; the DOM
+// work after it is per topic (preview) and per question button (exam), which is linear and small.
+
+/** The pre-P7-06 implementation, kept as an oracle: the fast version must give exactly the same text. */
+function removeTrailingCommasReference(text) {
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      out += c;
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      out += c;
+    } else if (c === ',') {
+      let j = i + 1;
+      while (j < text.length && ' \t\r\n'.includes(text[j])) j++;
+      out += text[j] === '}' || text[j] === ']' ? ' ' : c;
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+
+const bestOf = (runs, fn) => {
+  let best = Infinity;
+  for (let i = 0; i < runs; i++) {
+    const t0 = performance.now();
+    fn();
+    best = Math.min(best, performance.now() - t0);
+  }
+  return best;
+};
+
+/** The worst realistic paste: chat prose around a code fence, Windows line endings, pretty-printed, one trailing comma. */
+function worstPaste(questions) {
+  const pack = packObject({ to: questions, total: questions });
+  // Real questions are longer than the short fixtures: a 130-question pack with explanations is about 80 KB (PLAN §7).
+  for (const q of pack.questions) {
+    q.question += ' A scenario in which a small office wants its computers to share one printer and exchange files over the network.';
+    q.explanation += ' This option is right because the other choices describe things the network does not do, which is the tempting mistake here.';
+    for (const k of Object.keys(q.options)) q.options[k] += ' with a longer, plausible wording that is similar in length to the others';
+  }
+  const { text } = packText(pack);
+  const crlf = text.replace(/\n/g, '\r\n').replace(/\r\n  \]\r\n\}/, ',\r\n  ]\r\n}');
+  return `Sure! Here is your quiz:\r\n\`\`\`json\r\n${crlf}\r\n\`\`\`\r\nLet me know if you want changes.\r\n`;
+}
+
+test('P7-06 removeTrailingCommas gives exactly what the old character-by-character version gave (random text)', () => {
+  let seed = 12345;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+  const alphabet = ['{', '}', '[', ']', ',', ',', '"', '"', '\\', ' ', '\n', '\r', '\t', 'x', '1', ':'];
+  for (let k = 0; k < 20000; k++) {
+    let text = '';
+    const length = Math.floor(rnd() * 40);
+    for (let i = 0; i < length; i++) text += alphabet[Math.floor(rnd() * alphabet.length)];
+    assert.equal(removeTrailingCommas(text), removeTrailingCommasReference(text), JSON.stringify(text));
+  }
+});
+
+test('P7-06 removeTrailingCommas: same text on real packs, same length (error positions stay valid), commas in strings are kept', () => {
+  const clean = packText(packObject({ to: 40, total: 40 })).text;
+  assert.equal(removeTrailingCommas(clean), clean, 'nothing to remove: the same text comes back');
+
+  const withCommas = clean.replace('\n  ]\n}', ',\n  ]\n}').replace('"subtopics":["a"]', '"subtopics":["a",]');
+  const fixed = removeTrailingCommas(withCommas);
+  assert.equal(fixed, removeTrailingCommasReference(withCommas));
+  assert.equal(fixed.length, withCommas.length);
+  assert.notEqual(fixed, withCommas);
+  JSON.parse(fixed);
+
+  const inString = '{"a": "x, ]", "b": [1, 2, ] , }';
+  assert.equal(removeTrailingCommas(inString), '{"a": "x, ]", "b": [1, 2  ]   }');   // two commas replaced, the one inside the string kept
+});
+
+test('P7-06 a 130-question paste (prose, fence, CRLF, trailing comma) loads and assembles well inside the budget', () => {
+  const paste = worstPaste(130);
+  assert.ok(paste.length >= 80000, 'at least as big as a real 130-question pack (about 80 KB, PLAN §7)');
+  let result;
+  const ms = bestOf(5, () => { result = loadInput(paste); addToAssembly(null, result); });
+  assert.equal(result.kind, 'pack');
+  assert.equal(result.ok, true);
+  assert.equal(result.repaired, true, 'the trailing comma was fixed');
+  assert.equal(result.pack.questions.length, 130);
+  assert.ok(ms < 100, `loadInput + addToAssembly took ${ms.toFixed(1)} ms; budget 100 ms here = about 1 s on a phone 10x slower`);
+});
+
+test('P7-06 a cut-off 130-question reply (salvage) and a pack with a real syntax error stay inside the budget too', () => {
+  const { text, ends } = packText(packObject());
+  const cut = text.slice(0, ends[96] + 40);
+  const broken = text.replace('"number":5,', '"number":\u201c5\u201d,');
+  for (const [name, input] of [['cut off', cut], ['syntax error', broken]]) {
+    let result;
+    const ms = bestOf(5, () => { result = loadInput(input); });
+    assert.ok(['pack', 'error'].includes(result.kind), name);
+    assert.ok(ms < 100, `${name}: ${ms.toFixed(1)} ms`);
+  }
+});
+
+test('P7-06 a very large paste (about 800 KB, 1040 questions) is still fast: removeTrailingCommas stays linear', () => {
+  const large = worstPaste(1040);
+  assert.ok(large.length > 700000, 'about 8 times a real 130-question pack');
+  // Measured here: about 4 ms. The one-character-at-a-time version needed about 50 ms for the same text, so 20 ms tells them apart.
+  const commas = bestOf(7, () => removeTrailingCommas(large));
+  assert.ok(commas < 20, `removeTrailingCommas took ${commas.toFixed(1)} ms on ${Math.round(large.length / 1024)} KB`);
+  let result;
+  const whole = bestOf(3, () => { result = loadInput(large); });
+  assert.equal(result.kind, 'pack');
+  assert.equal(result.pack.questions.length, 1040);
+  assert.ok(whole < 150, `loadInput took ${whole.toFixed(1)} ms on ${Math.round(large.length / 1024)} KB`);
 });

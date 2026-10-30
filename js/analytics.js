@@ -66,6 +66,7 @@ export function topicStats(pack, outcomes) {
     id: t.id, name: t.name, total: 0, correct: 0, wrong: 0, skipped: 0, unsure: 0, shaky: 0,
   }]));
   for (const o of Array.isArray(outcomes) ? outcomes : []) {
+    if (!isPlainObject(o)) continue;   // P7-07: stored outcomes can be damaged; one bad element must not take the screen down
     const t = byId.get(o.topic);
     if (!t) continue;
     t.total++;
@@ -282,7 +283,7 @@ export function analyzeExam(pack, graded, { nextTotal = NEXT_EXAM_DEFAULT_N } = 
     ...rankTopics(topics),
     gaps,
     misconceptions,
-    shaky: outcomes.filter((o) => o.outcome === 'correct' && o.unsure === true),
+    shaky: outcomes.filter((o) => isPlainObject(o) && o.outcome === 'correct' && o.unsure === true),
     nextExam: allocateNextExam(topics, nextTotal),
   };
 }

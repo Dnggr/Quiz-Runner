@@ -291,6 +291,10 @@ h2{font-size:16px;font-weight:700;margin:26px 0 10px;}
 .warn-box .warn-title{font-weight:700;color:#f5b942;}
 .warn-box ul{margin:6px 0 0;padding-left:20px;}
 .warn-details{margin-top:8px;}
+/* P7-05 / P7-07 notices (ui/notice.js): the message, then the buttons, one per row on a phone */
+.notice-message{margin-top:6px;white-space:pre-line;}
+.notice-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+.notice-actions .btn{flex:1 1 200px;}
 .warn-details summary{cursor:pointer;min-height:32px;padding:6px 0;}
 .warn-details .issue-group{border-color:#5c4b2a;}
 .warn-details .issue-label{color:#f5b942;}

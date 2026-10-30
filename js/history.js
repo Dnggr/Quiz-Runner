@@ -47,12 +47,18 @@ export function buildHistoryEntry(session, graded) {
 }
 
 /**
- * Read the history. `corrupt` is true when something other than an array is stored there: callers must not
- * overwrite it (the reset/repair offer is P7-07).
+ * Read the history. `corrupt` is true when something is stored there that is not a readable array: text that is not JSON
+ * (e.g. cut off while it was being written) or JSON of another shape. Callers must not overwrite it; the reset offer
+ * is `storagehealth.js` (P7-07).
  * @returns {{ entries: HistoryEntry[], corrupt: boolean }}
  */
 export function readHistory(store) {
-  const raw = store.get(STORAGE_KEYS.history, null);
+  // `inspect` tells unreadable text from a missing key; a store without it (a test double) can only say "missing".
+  const read = typeof store.inspect === 'function'
+    ? store.inspect(STORAGE_KEYS.history)
+    : { readable: true, value: store.get(STORAGE_KEYS.history, null) };
+  if (!read.readable) return { entries: [], corrupt: true };
+  const raw = read.value ?? null;
   if (raw === null) return { entries: [], corrupt: false };
   if (!Array.isArray(raw)) return { entries: [], corrupt: true };
   return { entries: raw.filter(isPlainObject), corrupt: false };
@@ -97,7 +103,7 @@ export function loadSnapshots(store) {
  */
 export function rebuildLatestReceipt(store, { now = new Date(), tzOffsetMinutes = 0, options = {} } = {}) {
   const { entries } = readHistory(store);
-  const usable = entries.filter((e) => typeof e.quiz_id === 'string' && isPlainObject(e.totals) && Array.isArray(e.outcomes));
+  const usable = entries.filter((e) => typeof e.quiz_id === 'string' && isPlainObject(e.totals) && hasWellFormedOutcomes(e));
   if (usable.length === 0) return { ok: false, error: 'No finished exam is stored on this device yet. Finish an exam, or paste a receipt instead.' };
 
   const when = (e) => { const ms = Date.parse(e.finished_at || e.started_at); return Number.isFinite(ms) ? ms : 0; };
@@ -133,8 +139,10 @@ export const entryId = (e) => String(e.id ?? `${e.quiz_id}@${e.started_at ?? ''}
 
 const timeOf = (e) => { const ms = Date.parse(e.finished_at || e.started_at); return Number.isFinite(ms) ? ms : 0; };
 const isPack = (p) => isPlainObject(p) && Array.isArray(p.questions) && p.questions.length > 0;
+/** Stored outcomes are a list of objects. A damaged entry (P7-07) can hold anything in that list; it is never rebuilt into a receipt. */
+const hasWellFormedOutcomes = (e) => Array.isArray(e.outcomes) && e.outcomes.every(isPlainObject);
 /** An exam that can be turned back into a receipt: its pack is stored and so are its graded outcomes. */
-const rebuildable = (e, pack) => isPack(pack) && Array.isArray(e.outcomes) && e.outcomes.length > 0 && isPlainObject(e.totals);
+const rebuildable = (e, pack) => isPack(pack) && hasWellFormedOutcomes(e) && e.outcomes.length > 0 && isPlainObject(e.totals);
 const nonEmpty = (v) => typeof v === 'string' && v.trim() !== '';
 
 /**

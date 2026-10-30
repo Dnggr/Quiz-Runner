@@ -109,9 +109,9 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 - [x] P7-02 **Continue prompt** generated from the missing question numbers
 - [x] P7-03 **Repair prompt** generated from the validator's error list
 - [x] P7-04 Multi-part merge: same `quiz_id`, combine by question number, later part wins on conflict, show progress "Parts loaded: 2 of 3"
-- [ ] P7-05 `localStorage` quota error handling (message + export backup + prune oldest)
-- [ ] P7-06 Large paste performance (130-question pack loads in under 1 s on a mid-range phone)
-- [ ] P7-07 Graceful handling of corrupted `session` / `history` (offer reset, never white-screen)
+- [x] P7-05 `localStorage` quota error handling (message + export backup + prune oldest) — notice with *Download backup* and *Make room*; "oldest" = oldest saved pack (D15)
+- [x] P7-06 Large paste performance (130-question pack loads in under 1 s on a mid-range phone) — parse+validate ≈ 2–9 ms (31 ms interpreter-only) against a 100 ms test budget (D17); **still to time on a real phone**
+- [x] P7-07 Graceful handling of corrupted `session` / `history` (offer reset, never white-screen) — notices with reset per key (D16), failing screens fall back to the start screen
 
 ## Phase 8 — Polish, QA, release
 - [ ] P8-01 Accessibility: option buttons have roles and labels, visible focus, color is never the only signal (add icons/text for correct/wrong)

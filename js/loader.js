@@ -116,33 +116,43 @@ export function extractJsonObject(text) {
 /**
  * Replace trailing commas (a comma followed only by whitespace and then `}` or `]`) with a space.
  * A space, not a deletion, so every character offset stays the same and error positions stay valid.
- * Commas inside strings are left alone.
+ * Commas inside strings are left alone. Returns the very same string when there is nothing to replace.
+ * P7-06: one pass that copies only the stretches between the commas it replaces. Building the result one character at a time
+ * took more than linear time on a large paste (a 900 KB text needed about 40 times what a 120 KB one did).
  */
 export function removeTrailingCommas(text) {
-  let out = '';
+  const n = text.length;
   let inString = false;
   let escaped = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
+  let copiedUpTo = 0;
+  let pieces = null;   // created at the first trailing comma
+  for (let i = 0; i < n; i++) {
+    const c = text.charCodeAt(i);
     if (inString) {
-      out += c;
       if (escaped) escaped = false;
-      else if (c === '\\') escaped = true;
-      else if (c === '"') inString = false;
+      else if (c === 92) escaped = true;          // backslash
+      else if (c === 34) inString = false;        // closing quote
       continue;
     }
-    if (c === '"') {
+    if (c === 34) {
       inString = true;
-      out += c;
-    } else if (c === ',') {
+    } else if (c === 44) {                        // comma
       let j = i + 1;
-      while (j < text.length && ' \t\r\n'.includes(text[j])) j++;
-      out += text[j] === '}' || text[j] === ']' ? ' ' : c;
-    } else {
-      out += c;
+      while (j < n) {
+        const w = text.charCodeAt(j);
+        if (w === 32 || w === 9 || w === 13 || w === 10) j++; else break;   // space, tab, CR, LF
+      }
+      const next = text.charCodeAt(j);
+      if (next === 125 || next === 93) {          // "}" or "]": this comma is a trailing one
+        if (pieces === null) pieces = [];
+        pieces.push(text.slice(copiedUpTo, i));
+        copiedUpTo = i + 1;
+      }
     }
   }
-  return out;
+  if (pieces === null) return text;
+  pieces.push(text.slice(copiedUpTo));
+  return pieces.join(' ');
 }
 
 /**

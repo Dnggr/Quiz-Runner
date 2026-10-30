@@ -87,6 +87,9 @@ The user asked for three things; each maps to one feature:
 | D12 | **Proposed (P7).** A loaded pack is merged with the one waiting on the Topics preview when `quiz_id` matches; later wins per question and per `meta` field; topics are the union; merged `part`/`total_parts` = 1/1; held in memory only | Spec says "merge by `quiz_id` and `number`, later wins" but not these details | Persist the held parts in storage; ask before overwriting |
 | D13 | **Proposed (P7).** Continue prompt: the spec template when the missing numbers are a tail; a second wording (`PROMPT_TEMPLATES.md`) for numbers missing at the start or in the middle | The template only describes "questions 1-K received" | Always ask "from the first missing number to the end" |
 | D14 | **Proposed (P7).** Repair prompt lists at most 50 problems, each cut at 300 characters; `total_questions` above 1000 counts as unknown | Spec gives no limits; keeps a bogus pack from making a huge prompt | No caps |
+| D15 | **Proposed (P7-05), awaiting owner approval.** "Prune oldest" removes saved question packs (`pack:<quiz_id>`), oldest exam first (a pack no exam uses comes first); the history entries stay, so an exam keeps its score and date and loses only its review and topic breakdown. The backup is offered before pruning, not forced. A value that did not fit stays in memory and is saved again after pruning | Packs are the bulk of the data and losing one is reversible from a backup; the checklist says "prune oldest" without saying what | Delete whole oldest exams; force a backup download before the prune button works |
+| D16 | **Proposed (P7-07).** A `session` or `history` that cannot be read or used is reported in a notice on the Home and Progress screens with a reset for that key only (saved packs and settings stay). Damaged history text can be downloaded first; a damaged exam in progress cannot (its answers stay out of every file, as in the backup). Nothing is deleted without a confirmation, and a damaged history is never overwritten by a new exam. A screen that throws shows a notice and returns to the start screen | The checklist says "offer reset, never white-screen" and nothing more | Reset everything at once; repair entries one by one; silently start empty |
+| D17 | **Proposed (P7-06).** "Loads in under 1 s on a mid-range phone" is checked as: paste → parsed, repaired and validated pack, within 100 ms on the development machine (about 10x faster than the target phone), best of five runs, in `node --test` | There is no phone in the test run; the target does not say what "loads" covers | Time it in a real browser on a real phone before each release |
 
 ## 6. Screens
 
@@ -107,7 +110,9 @@ The user asked for three things; each maps to one feature:
 | `pack:<quiz_id>` | Full pack, so old receipts and reviews can be rebuilt |
 | `history` | Array of graded results (per-question outcomes, per-topic stats, timestamps) |
 
-Quota: a 130-question pack is roughly 80 KB, so about 50 packs fit in typical `localStorage`. Handle quota errors with a clear message and an "export backup, then prune" option.
+Quota: a 130-question pack is roughly 80 KB, so about 50 packs fit in typical `localStorage`. Handle quota errors with a clear message and an "export backup, then prune" option (D15: `storagehealth.js`; the notice offers *Download backup* and *Make room*, which removes the oldest saved pack after asking).
+
+Damaged data (D16): `store.inspect` tells a missing key from an unreadable one; `storagehealth.scanStoredData` reports an unusable `session` or `history`; the notice offers the reset.
 
 ## 8. Proposed structure
 
@@ -134,7 +139,8 @@ quiz-runner/
 │  ├─ promptBuilder.js   pure: options → prompt text
 │  ├─ settings.js        pure: last-used Prompt Builder options in `settings` (via store.js)
 │  ├─ progress.js        pure: data for the Progress screen, the read-only old-exam view and the trend chart (reads store.js, never writes)
-│  └─ ui/                one file per screen (DOM only)
+│  ├─ storagehealth.js   pure: storage-full message, prune oldest saved pack, scan for a damaged `session` / `history`, reset one key (via store.js)
+│  └─ ui/                one file per screen (DOM only); `notice.js` is the shared notice area (storage full, damaged data, a failed screen)
 ├─ samples/              good + deliberately broken packs, sample receipt
 ├─ tests/                node:test for the pure modules
 ├─ docs/
