@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   toExamQuestions, createResponses, selectOption, pressNotSure,
-  progressCounts, firstUnansweredIndex, firstUnsureIndex,
+  progressCounts, firstUnansweredIndex, firstUnsureIndex, examShortcut, SHORTCUT_OPTION_LETTERS,
 } from '../js/exam.js';
 import { loadInput } from '../js/loader.js';
 import { basePack, readSample } from './helpers.js';
@@ -105,4 +105,47 @@ test('toExamQuestions tolerates junk without throwing', () => {
   assert.deepEqual(toExamQuestions(null), []);
   assert.deepEqual(toExamQuestions({ questions: [null, 5, { number: 1, question: 'q', options: null }] }),
     [{ number: 1, type: 'mc', text: 'q', options: [] }]);
+});
+
+// ---- P8-02 keyboard shortcuts --------------------------------------------------------------------------------------
+const ABCD = ['A', 'B', 'C', 'D'];
+
+test('P8-02 A-D choose that option, in either case', () => {
+  for (const letter of ABCD) {
+    assert.deepEqual(examShortcut({ key: letter }, ABCD), { action: 'select', value: letter });
+    assert.deepEqual(examShortcut({ key: letter.toLowerCase() }, ABCD), { action: 'select', value: letter });
+  }
+  assert.deepEqual(SHORTCUT_OPTION_LETTERS, ABCD);
+});
+
+test('P8-02 N is next, P is previous, U is "Not sure" (either case)', () => {
+  assert.deepEqual(examShortcut({ key: 'n' }, ABCD), { action: 'next' });
+  assert.deepEqual(examShortcut({ key: 'N' }, ABCD), { action: 'next' });
+  assert.deepEqual(examShortcut({ key: 'p' }, ABCD), { action: 'prev' });
+  assert.deepEqual(examShortcut({ key: 'u' }, ABCD), { action: 'unsure' });
+  assert.deepEqual(examShortcut({ key: 'U' }, ['True', 'False']), { action: 'unsure' }, 'N / P / U work on true/false questions too');
+});
+
+test('P8-02 a letter the question does not offer does nothing (3 options, true/false, no options)', () => {
+  assert.equal(examShortcut({ key: 'd' }, ['A', 'B', 'C']), null);
+  assert.equal(examShortcut({ key: 'a' }, ['True', 'False']), null);
+  assert.equal(examShortcut({ key: 'a' }, []), null);
+  assert.equal(examShortcut({ key: 'a' }), null);
+  assert.equal(examShortcut({ key: 'e' }, ['A', 'B', 'C', 'D', 'E']), null, 'only A-D are shortcuts');
+});
+
+test('P8-02 other keys, modified keys, held keys and typing in a field are left alone', () => {
+  for (const key of ['x', '1', 'Enter', ' ', 'Tab', 'Escape', 'ArrowRight', 'Dead', '']) assert.equal(examShortcut({ key }, ABCD), null, key);
+  for (const mod of ['ctrlKey', 'metaKey', 'altKey']) assert.equal(examShortcut({ key: 'n', [mod]: true }, ABCD), null, mod);
+  assert.equal(examShortcut({ key: 'n', repeat: true }, ABCD), null);
+  assert.equal(examShortcut({ key: 'a', isComposing: true }, ABCD), null);
+  for (const tagName of ['INPUT', 'textarea', 'Select']) assert.equal(examShortcut({ key: 'n', target: { tagName } }, ABCD), null, tagName);
+  assert.equal(examShortcut({ key: 'n', target: { tagName: 'DIV', isContentEditable: true } }, ABCD), null);
+  assert.deepEqual(examShortcut({ key: 'n', target: { tagName: 'BUTTON' } }, ABCD), { action: 'next' }, 'a focused button still gets shortcuts');
+  assert.equal(examShortcut(null, ABCD), null);
+  assert.equal(examShortcut({}, ABCD), null);
+});
+
+test('P8-02 shift does not change the meaning (a capital letter is still the same shortcut)', () => {
+  assert.deepEqual(examShortcut({ key: 'B', shiftKey: true }, ABCD), { action: 'select', value: 'B' });
 });

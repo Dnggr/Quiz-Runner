@@ -88,3 +88,30 @@ export function firstUnansweredIndex(questions, responses) {
 export function firstUnsureIndex(questions, responses) {
   return questions.findIndex((q) => responses[q.number] && responses[q.number].unsure === true);
 }
+
+// ---- Keyboard shortcuts (P8-02) -----------------------------------------------------------------------------------
+/** Option letters the keyboard can pick (P8-02: A-D). Questions with other option values (True / False) are not reachable this way. */
+export const SHORTCUT_OPTION_LETTERS = ['A', 'B', 'C', 'D'];
+
+/**
+ * What a key press means on a question screen (P8-02): A-D choose that option, N next, P previous, U "Not sure".
+ * Pure: it only looks at the key and at where it was typed, so both exam screens share it and `node --test` can check it.
+ * Returns null for anything else, so the browser's own behaviour is left alone: Ctrl / Cmd / Alt combinations
+ * (Ctrl+P prints, Cmd+N opens a window), held-down keys (N must not skip ten questions), IME composition, and typing in a field.
+ * @param {{ key?: string, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean, repeat?: boolean, isComposing?: boolean,
+ *           target?: { tagName?: string, isContentEditable?: boolean } | null }} event  a KeyboardEvent, or anything shaped like one
+ * @param {string[]} optionValues  the values of the options on screen, e.g. ['A','B','C','D'] or ['True','False']
+ * @returns {{ action: 'select', value: string } | { action: 'next' } | { action: 'prev' } | { action: 'unsure' } | null}
+ */
+export function examShortcut(event, optionValues = []) {
+  if (!event || typeof event.key !== 'string' || event.key.length !== 1) return null;
+  if (event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.isComposing) return null;
+  const tag = String(event.target?.tagName ?? '').toUpperCase();
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || event.target?.isContentEditable) return null;
+  const key = event.key.toUpperCase();
+  if (key === 'N') return { action: 'next' };
+  if (key === 'P') return { action: 'prev' };
+  if (key === 'U') return { action: 'unsure' };
+  if (SHORTCUT_OPTION_LETTERS.includes(key) && Array.isArray(optionValues) && optionValues.includes(key)) return { action: 'select', value: key };
+  return null;
+}

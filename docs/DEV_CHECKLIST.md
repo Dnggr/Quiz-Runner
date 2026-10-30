@@ -114,10 +114,10 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 - [x] P7-07 Graceful handling of corrupted `session` / `history` (offer reset, never white-screen) — notices with reset per key (D16), failing screens fall back to the start screen
 
 ## Phase 8 — Polish, QA, release
-- [ ] P8-01 Accessibility: option buttons have roles and labels, visible focus, color is never the only signal (add icons/text for correct/wrong)
-- [ ] P8-02 Keyboard shortcuts on desktop: A–D select, N/P next/prev, U unsure
-- [ ] P8-03 Keep safe-area padding and 16px inputs; test on iOS Safari and Android Chrome
-- [ ] P8-04 Real-world runs (record results in `docs/QA_LOG.md`):
+- [x] P8-01 Accessibility: option buttons have roles and labels, visible focus, color is never the only signal (add icons/text for correct/wrong) — options are `<button role="radio">` in a radiogroup named by the question on both exam screens (D18), one shared focus ring, focus kept after a redraw, Tab kept inside the finish dialog, jump cells carry a check / `?` and an `aria-label`; Results already had an icon and a word for every state. Checked in a headless DOM, **not yet with a screen reader on a phone** (`QA_LOG.md` §6)
+- [x] P8-02 Keyboard shortcuts on desktop: A–D select, N/P next/prev, U unsure — rules in `exam.js` `examShortcut` (unit-tested), used by the pack exam and Quick Paste (D18); A–D do nothing on True/False questions (D18); hint under the buttons on mouse-and-keyboard devices only
+- [ ] P8-03 Keep safe-area padding and 16px inputs; test on iOS Safari and Android Chrome — **code side done:** all four safe-area insets now pad the page and the dialog (D19), static tests keep every text field at 16px and the viewport at `viewport-fit=cover`. **Still to do on real devices:** the phone pass in `QA_LOG.md` §6
+- [ ] P8-04 Real-world runs (record results in `docs/QA_LOG.md`) — **log and run sheet created (settings, pass criteria, failure-mode register); no run has been made yet**:
   - [ ] Claude: initial 130 (single reply) · split into parts · targeted · retention
   - [ ] ChatGPT: initial 130 (single reply) · split into parts · targeted · retention
   - [ ] Note every failure mode, then fix the templates or loader

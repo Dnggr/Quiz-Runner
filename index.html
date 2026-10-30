@@ -109,7 +109,7 @@ D. To prevent devices from communicating with one another
   <!-- SCREEN 2: QUIZ -->
   <div class="screen" id="screen-quiz">
     <div class="top-actions">
-      <span class="pill" id="progressPill">Question 1 of 1</span>
+      <span class="pill" id="progressPill" role="status">Question 1 of 1</span>
       <button class="link-btn" id="resetBtn">Start over</button>
     </div>
     <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
@@ -117,21 +117,22 @@ D. To prevent devices from communicating with one another
     <div class="q-label" id="qLabel">Question 1</div>
     <div id="qHintWrap"></div>
     <div class="q-text" id="qText"></div>
-    <div id="optionsWrap"></div>
+    <div id="optionsWrap" role="radiogroup" aria-labelledby="qLabel qText"></div>
 
     <div class="nav-row">
-      <button class="btn" id="prevBtn">Previous</button>
-      <button class="btn btn-unsure" id="unsureBtn">Not sure</button>
-      <button class="btn btn-primary" id="nextBtn">Next</button>
+      <button class="btn" id="prevBtn" aria-keyshortcuts="P">Previous</button>
+      <button class="btn btn-unsure" id="unsureBtn" aria-keyshortcuts="U">Not sure</button>
+      <button class="btn btn-primary" id="nextBtn" aria-keyshortcuts="N">Next</button>
     </div>
+    <div class="kbd-hint">Keyboard: A–D choose · N next · P previous · U not sure</div>
 
-    <div class="jumpgrid" id="jumpGrid"></div>
+    <div class="jumpgrid" id="jumpGrid" role="group" aria-label="Jump to a question"></div>
   </div>
 
   <!-- SCREEN: EXAM (P3-01..P3-04). Question text and options only: answers are never put in this DOM. -->
   <div class="screen" id="screen-exam">
     <div class="top-actions">
-      <span class="pill" id="exProgressPill">Question 1 of 1</span>
+      <span class="pill" id="exProgressPill" role="status">Question 1 of 1</span>
       <button class="link-btn" id="exQuitBtn" type="button">Start over</button>
     </div>
     <div class="progress-track"><div class="progress-fill" id="exProgressFill" style="width:0%"></div></div>
@@ -140,16 +141,17 @@ D. To prevent devices from communicating with one another
     <div class="q-label" id="exQLabel">Question 1</div>
     <div id="exQHint"></div>
     <div class="q-text" id="exQText"></div>
-    <div id="exOptions" role="radiogroup" aria-label="Answer options"></div>
+    <div id="exOptions" role="radiogroup" aria-labelledby="exQLabel exQText"></div>
     <div class="q-flag" id="exFlagNote" hidden>Marked as not sure.</div>
 
     <div class="nav-row">
-      <button class="btn" id="exPrevBtn" type="button">Previous</button>
-      <button class="btn btn-unsure" id="exUnsureBtn" type="button" aria-pressed="false">Not sure</button>
-      <button class="btn btn-primary" id="exNextBtn" type="button">Next</button>
+      <button class="btn" id="exPrevBtn" type="button" aria-keyshortcuts="P">Previous</button>
+      <button class="btn btn-unsure" id="exUnsureBtn" type="button" aria-pressed="false" aria-keyshortcuts="U">Not sure</button>
+      <button class="btn btn-primary" id="exNextBtn" type="button" aria-keyshortcuts="N">Next</button>
     </div>
+    <div class="kbd-hint">Keyboard: A–D choose · N next · P previous · U not sure</div>
 
-    <div class="jumpgrid" id="exJumpGrid"></div>
+    <div class="jumpgrid" id="exJumpGrid" role="group" aria-label="Jump to a question"></div>
 
     <!-- Finish confirmation (P3-04) -->
     <div class="dialog-backdrop" id="exFinishDialog" role="dialog" aria-modal="true" aria-labelledby="exFinishTitle" hidden>

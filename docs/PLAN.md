@@ -90,6 +90,9 @@ The user asked for three things; each maps to one feature:
 | D15 | **Proposed (P7-05), awaiting owner approval.** "Prune oldest" removes saved question packs (`pack:<quiz_id>`), oldest exam first (a pack no exam uses comes first); the history entries stay, so an exam keeps its score and date and loses only its review and topic breakdown. The backup is offered before pruning, not forced. A value that did not fit stays in memory and is saved again after pruning | Packs are the bulk of the data and losing one is reversible from a backup; the checklist says "prune oldest" without saying what | Delete whole oldest exams; force a backup download before the prune button works |
 | D16 | **Proposed (P7-07).** A `session` or `history` that cannot be read or used is reported in a notice on the Home and Progress screens with a reset for that key only (saved packs and settings stay). Damaged history text can be downloaded first; a damaged exam in progress cannot (its answers stay out of every file, as in the backup). Nothing is deleted without a confirmation, and a damaged history is never overwritten by a new exam. A screen that throws shows a notice and returns to the start screen | The checklist says "offer reset, never white-screen" and nothing more | Reset everything at once; repair entries one by one; silently start empty |
 | D17 | **Proposed (P7-06).** "Loads in under 1 s on a mid-range phone" is checked as: paste → parsed, repaired and validated pack, within 100 ms on the development machine (about 10x faster than the target phone), best of five runs, in `node --test` | There is no phone in the test run; the target does not say what "loads" covers | Time it in a real browser on a real phone before each release |
+| D18 | **Proposed (P8-01, P8-02), awaiting owner approval.** The accessibility and keyboard work covers **both** exam screens, the Quiz Pack exam and Quick Paste (its options and jump cells become buttons; behaviour is unchanged). Shortcuts: A–D choose that option, N next (on the last question: the finish confirmation, or the export screen in Quick Paste), P previous, U "Not sure" (same rule as the button). A–D do nothing on True/False questions. Ignored while typing in a field, with Ctrl / Cmd / Alt, when a key is held down, and while the finish confirmation is open. The checklist says "desktop": there is no device check, a keyboard simply produces the keys, and the hint line is shown only where a mouse and keyboard exist | The checklist says "A–D select" and "option buttons" without naming the screens, and True/False options are not letters | Pack exam only; add T / F keys for True/False; show the hint everywhere |
+| D19 | **Proposed (P8-03), awaiting owner approval.** The page and the finish dialog are also padded by the left and right safe-area insets (landscape phones with a notch), not only top and bottom. The viewport tag is left as it is: its `maximum-scale=1.0` stops pinch-zoom, which is an accessibility question to decide separately | "Keep safe-area padding" can mean "do not remove it" or "make it complete"; with `viewport-fit=cover` the sides are covered by the notch | Leave the sides alone |
+| D20 | **Proposed (P8-04).** `docs/QA_LOG.md` holds the run sheet, the pass criteria, one record per run, the failure-mode register and the phone pass of P8-03. Runs with real AI chats and real phones are done by the owner; the log marks every one "Not run" until then | The checklist names the file and the runs but not their settings, order or what counts as a pass | Record results inside this checklist |
 
 ## 6. Screens
 
@@ -128,7 +131,7 @@ quiz-runner/
 │  ├─ validator.js       pack validation (errors vs warnings), groupIssues for the error screen
 │  ├─ packsummary.js     pure: loaded pack → data for the Topics preview
 │  ├─ parts.js           pure: what is missing from a pack ("Loaded 97 of 130"), merging the parts of one `quiz_id`, "Parts loaded: 2 of 3"
-│  ├─ exam.js            pure: response model, "Not sure" rule, progress counts, answer-free exam questions
+│  ├─ exam.js            pure: response model, "Not sure" rule, progress counts, answer-free exam questions, keyboard-shortcut rules (A–D, N, P, U)
 │  ├─ session.js         pure: in-progress exam record (build / validate / save / load via store.js)
 │  ├─ review.js          pure: graded outcomes + pack → Review items, filter chips, counts
 │  ├─ history.js         pure: save a graded exam to `history` and `pack:<quiz_id>` via store.js; import a receipt, delete one exam, clear all, build the profile receipt (via store.js)
@@ -146,6 +149,7 @@ quiz-runner/
 ├─ docs/
 │  ├─ PLAN.md
 │  ├─ DEV_CHECKLIST.md
+│  ├─ QA_LOG.md          real-world AI runs (P8-04) and the phone pass (P8-03)
 │  └─ ai/ QUIZ_PACK_SPEC.md · RECEIPT_SPEC.md · PROMPT_TEMPLATES.md
 └─ AGENTS.md
 ```
