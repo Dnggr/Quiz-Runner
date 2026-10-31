@@ -3,7 +3,7 @@
 Where the real-world runs of `DEV_CHECKLIST.md` **P8-04** are recorded, plus the phone pass of **P8-03**.
 Nothing in this file has been run against a real AI chat or a real phone yet: every result below is **Not run** until the owner fills it in. The two checklist boxes stay open until then.
 
-Last updated: 2026-10-30 · App version at the time: see `js/constants.js` (`APP_VERSION`) · Spec version: 1
+Last updated: 2026-10-31 · App version at the time: see `js/constants.js` (`APP_VERSION`) · Spec version: 1
 
 ---
 
@@ -149,3 +149,4 @@ These do not replace §3 or §6.
 - `npm test` passes, including new tests for the shortcut rules (`tests/exam.test.js`) and for the 16px fields, safe-area padding, focus ring, radio buttons and non-colour marks (`tests/a11y-static.test.js`).
 - Both exam screens were driven in a headless DOM (jsdom): roles and `aria-checked`, the shortcuts, no shortcuts while typing or while the finish dialog is open, focus kept after a redraw, the dialog's Tab trap, and no explanation text in the exam DOM.
 - The Prompt Builder produces a valid prompt for each of the four scenarios in §3 (sizes above).
+- The Git commands in `README.md` "Release and rollback" (P8-07) were run against a throwaway local repository with an **annotated** `v1-legacy` tag and a bare remote standing in for `origin`: `git tag -l`, `git ls-remote --tags` and `git ls-remote --heads` show the tag and the new branch, the plain `v1-legacy:refs/heads/rollback-v1` push is rejected, and `v1-legacy^{commit}:refs/heads/rollback-v1` creates the branch with the old tree. This checks the command syntax only. It does **not** show that the tag exists in the real repository, nor that Vercel builds and promotes that branch; the rehearsal on a preview is still to do by the owner.
