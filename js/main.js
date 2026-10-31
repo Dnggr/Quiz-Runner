@@ -70,6 +70,9 @@ let assembly = null;
 let current = null;
 // True when the result of the exam just finished could not be saved (shown as a warning on the Results screen).
 let saveFailed = false;
+// True when the last autosave of the exam in progress did not reach persistent storage (BUG-01): the exam screen shows its
+// "can't be saved" warning from the first question, not only after the first answer. Set at start and on every change.
+let examSaveFailed = false;
 
 /** The session in memory, else the saved one (e.g. after a refresh). Null when there is none. */
 function hydrate() {
@@ -210,7 +213,9 @@ const exam = initExam({
   onChange: ({ responses, index }) => {
     current.responses = responses;
     current.index = index;
-    return saveSession(store, current);
+    const saved = saveSession(store, current);
+    examSaveFailed = saved === false;
+    return saved;
   },
   onFinish: () => {
     current.finished = true;
@@ -219,7 +224,9 @@ const exam = initExam({
     // P3-09: the graded result goes to `history`, the pack to `pack:<quiz_id>`.
     const saved = saveFinishedExam(store, current, gradeExam(current.pack, current.responses));
     saveFailed = !(saved.packSaved && saved.historySaved);
-    router.navigate('results');
+    // BUG-05: replace the exam's history entry instead of stacking Results on top of it. A finished exam has no exam screen to
+    // go back to (the route guard would only bounce it to Results again), so Back from Results must reach the start screen.
+    router.navigate('results', { replace: true });
   },
   onQuit: () => {
     if (!confirm('Start over? This discards your answers for this exam.')) return;
@@ -313,7 +320,7 @@ function startExam() {
   }
   current = buildSession(packResult.pack);
   saveFailed = false;
-  saveSession(store, current);
+  examSaveFailed = saveSession(store, current) === false;   // BUG-01: shown on question 1, see mountExam
   checkStoredData();   // a damaged saved exam was just replaced by this one: its notice goes
   // P3-10: nothing from the pack may stay in the DOM while the exam runs, hidden screens included.
   // The paste box can still hold pack text, the Topics preview can hold warnings about the answer letters,
@@ -333,7 +340,7 @@ function startExam() {
 
 function mountExam() {
   // Only question text and options go to the exam screen; the pack's answers stay in `current.pack`.
-  exam.load({ questions: toExamQuestions(current.pack), responses: current.responses, index: current.index });
+  exam.load({ questions: toExamQuestions(current.pack), responses: current.responses, index: current.index, storageFailed: examSaveFailed });
 }
 
 /**

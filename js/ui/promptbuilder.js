@@ -7,7 +7,7 @@ import {
   MODES, RECEIPT_MODES, presetCount, defaultOptions, buildPrompt, receiptInfo, defaultTopicRows, summarizeTarget,
 } from '../promptBuilder.js';
 import { parseReceipt, formatTokenEstimate } from '../receipt.js';
-import { SKILLS } from '../constants.js';
+import { SKILLS, MAX_PACK_QUESTIONS } from '../constants.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -447,6 +447,7 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots, load
   $('pbSubject').value = state.subject;
   $('pbLearner').value = state.learner;
   $('pbCustomTask').value = state.customTask;
+  $('pbCount').max = String(MAX_PACK_QUESTIONS);   // BUG-02: same limit as buildPrompt; the limit lives in constants.js only
   $('pbCount').value = state.count;
   $('pbEasy').value = state.easy;
   $('pbModerate').value = state.moderate;

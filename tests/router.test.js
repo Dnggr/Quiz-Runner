@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { parseHash, buildHash, createRouter } from '../js/router.js';
 
 const ROUTES = ['input', 'quiz', 'export'];
@@ -151,4 +154,46 @@ test('P6-02 an exam id (quiz id, "@", an ISO time with colons) survives the trip
     assert.match(hash, /^#\/past\/[^/]+$/, 'one path segment, even when the id has a slash');
     assert.deepEqual(parseHash(hash, known, 'input'), { name: 'past', args: [id], known: true });
   }
+});
+
+// ---- BUG-05: one Back press after finishing an exam must reach the start screen ---------------------------------------
+// A finished exam has no exam screen to return to: the guard sends #/exam straight on to #/results. So the route that
+// finishes the exam has to REPLACE the exam's history entry. Pushing Results on top leaves a dead step that Back lands on
+// (it bounces to Results again), and only the second Back reaches the start screen.
+function examLikeSetup() {
+  let finished = false;
+  const ctx = setup({
+    allowed: (r) => (r.name === 'quiz' && finished ? 'export' : null),   // 'quiz' plays the exam, 'export' plays Results
+  });
+  return { ...ctx, finish: () => { finished = true; } };
+}
+
+test('BUG-05 finishing with replace: Back from Results reaches the start screen in one press', () => {
+  const { router, win, finish } = examLikeSetup();
+  router.start();
+  router.navigate('quiz');                              // start the exam
+  finish();
+  router.navigate('export', { replace: true });         // what main.js onFinish does now
+  assert.deepEqual(win.stack, ['', '#/export']);
+  win.back();
+  assert.equal(router.current.name, 'input', 'one Back is enough');
+});
+
+test('BUG-05 (why) finishing with a plain push leaves a dead history step: the first Back stays on Results', () => {
+  const { router, win, finish } = examLikeSetup();
+  router.start();
+  router.navigate('quiz');
+  finish();
+  router.navigate('export');                            // the old behaviour
+  win.back();                                           // lands on #/quiz, which the guard bounces to Results
+  assert.equal(router.current.name, 'export', 'the first Back appears to do nothing');
+  win.back();
+  assert.equal(router.current.name, 'input', 'only the second Back reaches the start screen');
+});
+
+test('BUG-05 main.js finishes the exam by replacing the exam entry with Results', () => {
+  const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+  const main = readFileSync(join(root, 'js/main.js'), 'utf8').replace(/\/\/.*$/gm, '');
+  const onFinish = main.slice(main.indexOf('onFinish:'), main.indexOf('onQuit:'));
+  assert.match(onFinish, /router\.navigate\('results',\s*\{\s*replace:\s*true\s*\}\)/);
 });

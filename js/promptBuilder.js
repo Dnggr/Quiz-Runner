@@ -30,6 +30,14 @@ const toInt = (v) => {
   return NaN;
 };
 
+/**
+ * BUG-02: the loader treats a `total_questions` above MAX_PACK_QUESTIONS as unknown, so a pack that large could never report
+ * missing questions. The builder therefore asks for at most that many. `total` is given when it is the sum of the topic counts.
+ */
+const tooManyQuestions = (total) => (total === undefined
+  ? `Question count can be at most ${MAX_PACK_QUESTIONS}.`
+  : `The topic counts add up to ${total} questions; the most you can ask for is ${MAX_PACK_QUESTIONS}.`);
+
 /** Single pass: values are never scanned again, so text a learner typed can never be treated as a placeholder. */
 const fill = (template, vars) => template.replace(/\{\{(\w+)\}\}/g, (whole, key) => (Object.hasOwn(vars, key) ? String(vars[key]) : whole));
 
@@ -124,7 +132,7 @@ Do not reveal or discuss the answers in the chat. Output only the quiz pack:
 All questions go in one reply.`,
 
   deliveryParts: `DELIVERY
-Do not reveal or discuss the answers in the chat. Deliver the exam in {{total_parts}} parts of at most {{part_size}} questions. Start now with part 1 only. Each part must be a complete, valid JSON pack using the same "meta" (same quiz_id, total_questions, and topics) except "part". Number questions continuously across parts. After part 1, wait for me to say "next" before sending the next part.
+Do not reveal or discuss the answers in the chat. Deliver the exam in {{total_parts}} {{parts_word}} of at most {{part_size}} questions. Start now with part 1 only. Each part must be a complete, valid JSON pack using the same "meta" (same quiz_id, total_questions, and topics) except "part". Number questions continuously across parts. After part 1, wait for me to say "next" before sending the next part.
 - If you can create a downloadable file, name it "{{quiz_id}}-part-N.json" and reply with just the file.
 - Otherwise reply with a single code block containing only the JSON.`,
 
@@ -441,6 +449,8 @@ export function buildPrompt(raw, { snapshots = [] } = {}) {
           const d = defaults.get(t.id);
           rows.push({ id: t.id, name: t.name, status: status.get(t.id) ?? null, count: n, reason: d ? d.reason : 'added by you', mix: mode === 'retention' ? null : (d ? d.mix : { ...DIFFICULTY_MIX_BY_GROUP[mixGroupFor(status.get(t.id))] }) });
         }
+      } else if (Number.isInteger(count) && count > MAX_PACK_QUESTIONS) {
+        errors.push(tooManyQuestions());   // BUG-02
       } else if (Number.isInteger(count) && count > 0) {
         rows = defaultTopicRows(info, mode, count);
       } else {
@@ -449,10 +459,13 @@ export function buildPrompt(raw, { snapshots = [] } = {}) {
       if (rows) {
         count = sum(rows.map((r) => r.count));
         if (count < 1) errors.push('Ask for at least one question: give a topic a count of 1 or more.');
+        else if (count > MAX_PACK_QUESTIONS) errors.push(tooManyQuestions(count));   // BUG-02: the topic counts add up to too many
       }
     }
   } else if (!(count >= 1)) {
     errors.push('Question count must be a whole number, 1 or more.');
+  } else if (count > MAX_PACK_QUESTIONS) {
+    errors.push(tooManyQuestions());   // BUG-02
   }
 
   // ---- initial / targeted: difficulty and skills ----
@@ -501,6 +514,7 @@ export function buildPrompt(raw, { snapshots = [] } = {}) {
     learner, subject, count, topic_min: topicMin, topic_max: topicMax,
     easy_pct: pcts.easy, moderate_pct: pcts.moderate, challenging_pct: pcts.challenging, skills_list: skills.join(', '),
     quiz_id: quizId, total_parts: totalParts, part_size: partSize,
+    parts_word: totalParts === 1 ? 'part' : 'parts',   // BUG-06: "1 part", never "1 parts"
   };
   const blocks = [fill(TEMPLATES.role, common)];
 

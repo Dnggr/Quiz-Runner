@@ -222,13 +222,13 @@ export function initExam({ onChange, onFinish, onQuit }) {
   });
 
   return {
-    /** Show an exam (new or resumed). `questions` must come from toExamQuestions: no answers. */
+    /** Show an exam (new or resumed). `questions` must come from toExamQuestions: no answers. `storageFailed`: the last autosave did not reach storage, so the warning shows at once. */
     load(state) {
       questions = state.questions;
       responses = state.responses;
       index = Math.min(Math.max(state.index, 0), questions.length - 1);
       $('exFinishDialog').hidden = true;
-      $('exStorageWarn').style.display = 'none';
+      $('exStorageWarn').style.display = state.storageFailed === true ? 'block' : 'none';   // BUG-01: known at start, before the first change
       render();
     },
   };

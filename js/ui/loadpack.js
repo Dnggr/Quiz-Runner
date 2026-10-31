@@ -11,6 +11,13 @@ const $ = (id) => document.getElementById(id);
 
 const ACCEPTED_MIME = ['application/json', 'text/plain', 'text/markdown', 'text/x-markdown'];
 
+/** ".json, .txt or .md" (BUG-06: the last item is joined with "or"). Pure; exported for the tests. */
+export function listWithOr(items) {
+  const list = [...items];
+  if (list.length <= 1) return list.join('');
+  return `${list.slice(0, -1).join(', ')} or ${list[list.length - 1]}`;
+}
+
 /** True for a file we can read: right extension, or (mobile browsers often omit it) a text-like MIME type. */
 export function isAcceptedFile(file) {
   const name = String((file && file.name) || '').toLowerCase();
@@ -79,7 +86,7 @@ export function initLoadScreen({ startLegacy, onPack, onPackProblems, isLoadScre
     clearMessages();
     if (!file) return;
     if (!isAcceptedFile(file)) {
-      showError(`"${file.name}" isn't a supported file. Choose a ${ACCEPTED_FILE_EXTENSIONS.join(', ')} file.`, note);
+      showError(`"${file.name}" isn't a supported file. Choose a ${listWithOr(ACCEPTED_FILE_EXTENSIONS)} file.`, note);
       return;
     }
     let text;

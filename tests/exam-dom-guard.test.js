@@ -92,3 +92,18 @@ test('P6-01 progress.js only reads storage: it never calls set, remove or clear 
   const src = code('js/progress.js');
   assert.ok(!/\bstore\.(set|remove|clear)\b/.test(src));
 });
+
+// BUG-01: when storage is blocked or full, the exam screen must say so from the first question, not after the first answer.
+test('BUG-01 starting an exam keeps the result of the first save and hands it to the exam screen', () => {
+  const main = code('js/main.js');
+  const start = main.slice(main.indexOf('function startExam'), main.indexOf('function mountExam'));
+  assert.match(start, /examSaveFailed = saveSession\(store, current\) === false/, 'startExam must not ignore the result of saveSession');
+  assert.match(main.slice(main.indexOf('function mountExam')), /exam\.load\(\{[^}]*storageFailed: examSaveFailed/);
+  assert.match(main, /examSaveFailed = saved === false/, 'every autosave updates the flag too');
+});
+
+test('BUG-01 ui/exam.js shows the storage warning when load() says storage failed, and hides it otherwise', () => {
+  const src = code('js/ui/exam.js');
+  const load = src.slice(src.indexOf('load(state)'));
+  assert.match(load, /\$\('exStorageWarn'\)\.style\.display = state\.storageFailed === true \? 'block' : 'none'/);
+});

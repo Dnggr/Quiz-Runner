@@ -161,7 +161,7 @@ All questions go in one reply.
 ### parts
 ```
 DELIVERY
-Do not reveal or discuss the answers in the chat. Deliver the exam in {{total_parts}} parts of at most {{part_size}} questions. Start now with part 1 only. Each part must be a complete, valid JSON pack using the same "meta" (same quiz_id, total_questions, and topics) except "part". Number questions continuously across parts. After part 1, wait for me to say "next" before sending the next part.
+Do not reveal or discuss the answers in the chat. Deliver the exam in {{total_parts}} {{parts_word}} of at most {{part_size}} questions. Start now with part 1 only. Each part must be a complete, valid JSON pack using the same "meta" (same quiz_id, total_questions, and topics) except "part". Number questions continuously across parts. After part 1, wait for me to say "next" before sending the next part.
 - If you can create a downloadable file, name it "{{quiz_id}}-part-N.json" and reply with just the file.
 - Otherwise reply with a single code block containing only the JSON.
 ```
@@ -213,17 +213,19 @@ Send only the missing questions. Use the same quiz pack format with the same "me
 | Mode | — | initial |
 | Learner | `learner` | BSIT student |
 | Subject | `subject` | (required) |
-| Question count | `count` | initial 130 · targeted 40 · retention 12 |
+| Question count | `count` | initial 130 · targeted 40 · retention 12 (whole number, 1 to 1000) |
 | Topic range | `topic_min`, `topic_max` | 6–15 |
 | Difficulty % | `easy_pct`, `moderate_pct`, `challenging_pct` | 30 / 40 / 30 |
 | Skills | `skills_list` | all seven |
 | Delivery | file-or-code / parts | file-or-code |
 | Part size | `part_size` | 45 |
+| (derived) | `total_parts` = ceil(`count` ÷ `part_size`); `parts_word` = "part" when `total_parts` is 1, otherwise "parts" | — |
 | Quiz id | `quiz_id` | auto: `<subject-slug>-<mode>-<NN>` |
 | Receipt | `receipt_*`, `allocation_summary`, `priority_topics`, `based_on_quiz_id` | from pasted or latest receipt |
 
 Rules for the builder:
 - Never include the learner's course content in the prompt; they attach files to the chat themselves.
+- Ask for at most 1000 questions (`MAX_PACK_QUESTIONS`, the same limit the loader uses: a `total_questions` above it is treated as unknown, so such a pack could never report missing questions). A larger count, or per-topic counts that add up to more, is an error and no prompt is built.
 - Show an approximate prompt length (characters ÷ 4).
 - Keep wording generic about AI products (don't promise features such as file creation; the delivery block already has a fallback).
 - Quiz ids are unique per exam; the builder increments `NN` using local history.
@@ -232,3 +234,5 @@ Rules for the builder:
 - v1 — initial templates.
 - v1 (P5-06) — added TOPIC_BLOCK for targeted and retention prompts. Wording of the other blocks and the Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.
 - v1 (P7-02, P7-03) — documented how the app fills the Repair and Continue prompts, and added the "missing numbers" variant of the Continue prompt. The Repair and Continue wording and the Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.
+- v1 (BUG-02) — the Prompt Builder asks for at most 1000 questions (Builder options). The block wording and the Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.
+- v1 (BUG-06) — the parts delivery block says "1 part" instead of "1 parts" when the part size is not smaller than the count (new `{{parts_word}}` placeholder). The Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.

@@ -13,7 +13,7 @@ import { gradeExam } from '../js/grader.js';
 import { createStore } from '../js/store.js';
 import { buildSession } from '../js/session.js';
 import { saveFinishedExam, rebuildLatestReceipt } from '../js/history.js';
-import { SPEC_VERSION, DEFAULT_COUNTS, SKILLS } from '../js/constants.js';
+import { SPEC_VERSION, DEFAULT_COUNTS, SKILLS, MAX_PACK_QUESTIONS } from '../js/constants.js';
 import { loadInput } from '../js/loader.js';
 import { readSample } from './helpers.js';
 
@@ -93,7 +93,7 @@ test('P5-02 presets: initial 130, targeted 40, retention 12; every mode has a co
   for (const mode of ['initial', 'targeted', 'retention']) assert.equal(defaultOptions(mode).count, DEFAULT_COUNTS[mode]);
 });
 
-test('P5-02 presets are only starting points: any whole count builds, and the prompt says that count', () => {
+test('P5-02 presets are only starting points: any whole count from 1 to the limit builds, and the prompt says that count', () => {
   const r = buildPrompt(opts('initial', { count: 77 }));
   assert.equal(r.ok, true);
   assert.match(r.prompt, /exactly 77 multiple-choice questions/);
@@ -224,6 +224,18 @@ test('P5-01 a part size that is not smaller than the count gives a single part a
   assert.equal(r.ok, true);
   assert.equal(r.meta.totalParts, 1);
   assert.ok(r.warnings.some((w) => /single part/.test(w)));
+});
+
+test('BUG-06 a single part says "1 part", never "1 parts"; several parts keep the plural', () => {
+  const single = buildPrompt(opts('initial', { delivery: 'parts', partSize: 200 }));
+  assert.equal(single.meta.totalParts, 1);
+  assert.match(single.prompt, /Deliver the exam in 1 part of at most 200 questions\./);
+  assert.doesNotMatch(single.prompt, /\b1 parts\b/);
+  assert.doesNotMatch(single.prompt, /\{\{/, 'no placeholder is left unfilled');
+  const exactlyTwo = buildPrompt(opts('initial', { delivery: 'parts', partSize: 65 }));
+  assert.match(exactlyTwo.prompt, /Deliver the exam in 2 parts of at most 65 questions\./);
+  const equalSize = buildPrompt(opts('initial', { delivery: 'parts', partSize: 130 }));   // part size == count: still one part
+  assert.match(equalSize.prompt, /Deliver the exam in 1 part of at most 130 questions\./);
 });
 
 // ---- P5-01 validation -----------------------------------------------------------------------------------------
@@ -778,4 +790,67 @@ test('P5-10 the three spec documents carry the same version as SPEC_VERSION', ()
   assert.match(read('QUIZ_PACK_SPEC.md'), new RegExp(`^# Quiz Pack Spec — v${SPEC_VERSION}$`, 'm'));
   assert.match(read('RECEIPT_SPEC.md'), new RegExp(`^# Receipt Spec — v${SPEC_VERSION}$`, 'm'));
   assert.match(read('PROMPT_TEMPLATES.md'), new RegExp(`^# Prompt Templates — v${SPEC_VERSION}$`, 'm'));
+});
+
+// ---- BUG-02: the question count has an upper limit (MAX_PACK_QUESTIONS), the same one the loader uses --------------------
+
+test('BUG-02 initial and custom: the limit itself builds, one more is an error and builds nothing', () => {
+  for (const mode of ['initial', 'custom']) {
+    const extra = mode === 'custom' ? { customTask: 'Ask about everything.' } : {};
+    const atLimit = buildPrompt(opts(mode, { ...extra, count: MAX_PACK_QUESTIONS }));
+    assert.equal(atLimit.ok, true, `${mode} at ${MAX_PACK_QUESTIONS}`);
+    assert.match(atLimit.prompt, new RegExp(`\"total_questions\": ${MAX_PACK_QUESTIONS},`));
+    for (const count of [MAX_PACK_QUESTIONS + 1, 999999999, String(MAX_PACK_QUESTIONS + 1), ` ${MAX_PACK_QUESTIONS + 1} `]) {
+      const over = buildPrompt(opts(mode, { ...extra, count }));
+      assert.equal(over.ok, false, `${mode} ${JSON.stringify(count)}`);
+      assert.equal(over.prompt, '');
+      assert.equal(over.meta, null);
+      assert.deepEqual(over.errors, [`Question count can be at most ${MAX_PACK_QUESTIONS}.`]);
+    }
+  }
+});
+
+test('BUG-02 targeted and retention: a count above the limit is an error (the limit itself builds)', () => {
+  for (const mode of ['targeted', 'retention']) {
+    const atLimit = buildPrompt(opts(mode, { count: MAX_PACK_QUESTIONS }));
+    assert.equal(atLimit.ok, true, `${mode} at ${MAX_PACK_QUESTIONS}`);
+    assert.equal(atLimit.meta.count, MAX_PACK_QUESTIONS);
+    for (const count of [MAX_PACK_QUESTIONS + 1, 999999999]) {
+      const over = buildPrompt(opts(mode, { count }));
+      assert.equal(over.ok, false, `${mode} ${count}`);
+      assert.equal(over.prompt, '');
+      assert.match(over.errors.join(' | '), /at most 1000/);
+    }
+  }
+});
+
+test('BUG-02 targeted and retention: per-topic counts that add up to more than the limit are an error', () => {
+  for (const mode of ['targeted', 'retention']) {
+    const fits = buildPrompt(opts(mode, { topicCounts: [{ id: 't1', count: MAX_PACK_QUESTIONS - 5 }, { id: 't2', count: 5 }] }));
+    assert.equal(fits.ok, true, `${mode} adding up to the limit`);
+    assert.equal(fits.meta.count, MAX_PACK_QUESTIONS);
+    const over = buildPrompt(opts(mode, { topicCounts: [{ id: 't1', count: MAX_PACK_QUESTIONS - 5 }, { id: 't2', count: 6 }] }));
+    assert.equal(over.ok, false, mode);
+    assert.equal(over.prompt, '');
+    assert.deepEqual(over.errors, [`The topic counts add up to ${MAX_PACK_QUESTIONS + 1} questions; the most you can ask for is ${MAX_PACK_QUESTIONS}.`]);
+    const huge = buildPrompt(opts(mode, { topicCounts: [{ id: 't1', count: 999999999 }] }));
+    assert.equal(huge.ok, false, `${mode} huge topic count`);
+  }
+});
+
+test('BUG-02 the existing count errors are unchanged: zero, negative, fractions and text still say "1 or more"', () => {
+  for (const count of [0, -4, 2.5, 'abc', '', null]) {
+    const r = buildPrompt(opts('initial', { count }));
+    assert.equal(r.ok, false, String(count));
+    assert.deepEqual(r.errors, ['Question count must be a whole number, 1 or more.'], String(count));
+  }
+});
+
+test('BUG-02 the limit is the loader\'s, and the screen puts it on the number box from constants.js (no copy of 1000 in the page)', () => {
+  assert.equal(MAX_PACK_QUESTIONS, 1000);
+  const ui = readFileSync(join(root, 'js', 'ui', 'promptbuilder.js'), 'utf8');
+  assert.match(ui, /\$\('pbCount'\)\.max = String\(MAX_PACK_QUESTIONS\)/);
+  const html = readFileSync(join(root, 'index.html'), 'utf8');
+  const box = html.match(/<input[^>]*id="pbCount"[^>]*>/)[0];
+  assert.doesNotMatch(box, /\bmax=/, 'index.html must not hard-code the limit');
 });

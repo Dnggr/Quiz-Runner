@@ -100,7 +100,9 @@ textarea:focus{outline:none;border-color:var(--accent);}
   font-size:13px;
   cursor:pointer;
   text-decoration:underline;
-  padding:8px 0;
+  padding:8px 12px;
+  min-height:48px;   /* BUG-04: AGENTS.md 48px tap-target rule (was 56x31) */
+  min-width:48px;
   touch-action:manipulation;
 }
 .link-btn:hover{color:var(--text);}

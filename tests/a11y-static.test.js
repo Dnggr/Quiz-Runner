@@ -124,3 +124,12 @@ test('P8-02 the shortcuts are announced: aria-keyshortcuts on the buttons and a 
   assert.match(css, /\.kbd-hint\{display:none/);
   assert.match(css, /@media \(hover:hover\) and \(pointer:fine\)\{\s*\.kbd-hint\{display:block/);
 });
+
+// ---- BUG-04: the 48px tap-target rule for the "Start over" link button -------------------------------------------------
+test('BUG-04 the "Start over" link button (both exam screens) is at least 48x48', () => {
+  const rule = cssRules(css).find((r) => r.selectors.split(',').map((x) => x.trim()).includes('.link-btn'));
+  assert.ok(rule, 'a .link-btn rule exists');
+  assert.match(rule.body, /min-height:\s*48px/);
+  assert.match(rule.body, /min-width:\s*48px/);
+  for (const id of ['resetBtn', 'exQuitBtn']) assert.match(html, new RegExp(`class="link-btn" id="${id}"`), `${id} uses .link-btn`);
+});
