@@ -121,10 +121,10 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
   - [ ] Claude: initial 130 (single reply) · split into parts · targeted · retention
   - [ ] ChatGPT: initial 130 (single reply) · split into parts · targeted · retention
   - [ ] Note every failure mode, then fix the templates or loader
-- [ ] P8-05 README: how to use the loop in 6 steps, with screenshots
-- [ ] P8-06 Bump `APP_VERSION`; deploy to a Vercel preview; test on a phone; promote to production
-- [ ] P8-07 Rollback plan confirmed (`v1-legacy` tag redeploys the old app)
-- [ ] P8-08 Optional: practice mode · timer · PWA/offline
+- [x] P8-05 README: how to use the loop in 6 steps, with screenshots — six steps in `README.md`, five screenshots in `docs/img/` taken from the running app in headless Chromium at 390×844 (2×) with `samples/sample-pack.json` (step 2 happens in the AI chat, so it has none). They are not photos from a real phone
+- [ ] P8-06 Bump `APP_VERSION`; deploy to a Vercel preview; test on a phone; promote to production — **bump done:** `APP_VERSION` and `package.json` are `2.0.0` (D21), the golden sample receipt and the prompt snapshots follow it, `npm test` passes. **Still to do by the owner:** deploy the preview, the phone pass in `QA_LOG.md` §6, promote
+- [ ] P8-07 Rollback plan confirmed (`v1-legacy` tag redeploys the old app) — **procedure written** in `README.md` "Release and rollback" (D22): Vercel does not deploy a bare tag, so it goes through a branch from the tag and Promote to Production. **Not confirmed:** the tag may not exist yet (P0-04 is open) and nobody has rehearsed a rollback. Check the tag, then rehearse once on a preview
+- [ ] P8-08 Optional: practice mode · timer · PWA/offline — **not started:** each of the three needs an owner decision first (see the questions at the end of the P8 hand-over; `PLAN.md` §11 also lists them as post-v2 backlog)
 
 ---
 

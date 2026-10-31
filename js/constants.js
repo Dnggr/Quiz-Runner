@@ -4,7 +4,7 @@
 
 // ---- Versions ------------------------------------------------------------
 export const SPEC_VERSION = 1;            // Quiz Pack + Receipt format version
-export const APP_VERSION = '2.0.0-dev';   // bumped at release (P8-06)
+export const APP_VERSION = '2.0.0';       // release version (P8-06); bump on every release, keep package.json "version" the same
 
 // ---- Storage (see PLAN.md §7) -------------------------------------------
 export const STORAGE_PREFIX = 'qr:v1:';
