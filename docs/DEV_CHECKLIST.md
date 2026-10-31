@@ -31,7 +31,7 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 **Done when:** the app behaves exactly like today, but from modules, and the tests run.
 
 ## Phase 2 — Quiz Pack in
-- [ ] P2-01 Load by paste, file picker, and drag-and-drop (`.json`, `.txt`, `.md`)
+- [x] P2-01 Load by paste, file picker, and drag-and-drop (`.json`, `.txt`, `.md`) — checked 2026-10-31 in headless Chromium (`QA_LOG.md` §7): paste, picker and drop each reach the Topics preview for all three file types; two dropped files load the first and say so; `.png` / `.exe` are refused with a message; a drop on another screen is ignored. Not tried on a real phone's file picker
 - [x] P2-02 `loader.js` pipeline: strip BOM → strip code fences / surrounding prose → extract first top-level `{…}` → `JSON.parse` → on failure remove trailing commas and retry → else report error with position
 - [x] P2-03 Detect legacy plain-text input and route to "Quick Paste (answers only)" mode (today's behaviour)
 - [x] P2-04 `validator.js` with **errors** (block) and **warnings** (allow):
@@ -83,17 +83,17 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 - [x] P5-04 Embed the compact format spec in every prompt (prompt must work in a fresh chat)
 - [x] P5-05 Targeted / retention: paste receipt or "Use latest from this device"; validate and summarize what will be targeted; allow editing question counts per topic
 - [x] P5-06 Force topic reuse: embed exact topic ids and names from the receipt
-- [ ] P5-07 Live preview, Copy, Download `.md`, length estimate
+- [x] P5-07 Live preview, Copy, Download `.md`, length estimate — checked 2026-10-31 in headless Chromium (`QA_LOG.md` §7): the preview and the "≈ N tokens · N characters" line update as options change, Copy reports success, Download gives `<subject>-<mode>-NN.prompt.md`
 - [x] P5-08 Remember last-used options in `settings`
-- [ ] P5-09 "Next quiz prompt" button on Results/Receipt opens the builder prefilled in targeted mode
+- [x] P5-09 "Next quiz prompt" button on Results/Receipt opens the builder prefilled in targeted mode — checked 2026-10-31 in headless Chromium (`QA_LOG.md` §7): from the receipt screen the builder opens in Targeted mode with the subject, 40 questions and the finished exam's weak topics filled in. The button on the Results screen shares the same handler (`openNextPrompt`) but was not clicked separately
 - [x] P5-10 Test: `SPEC_VERSION` in generated prompt equals the loader's supported version
 - [x] P5-11 Snapshot tests for each mode
 
 **Done when:** prompt → AI → pack → exam → receipt → next prompt works as a full loop.
 
 ## Phase 6 — History and learner profile
-- [ ] P6-01 Progress screen: list of exams (date, title, score, rating)
-- [ ] P6-02 Open an old exam read-only (uses stored pack)
+- [x] P6-01 Progress screen: list of exams (date, title, score, rating) — checked 2026-10-31 in headless Chromium (`QA_LOG.md` §7): each row shows title, score and percentage, date, rating and subject, with Open / Compare / Delete
+- [x] P6-02 Open an old exam read-only (uses stored pack) — checked 2026-10-31 in headless Chromium (`QA_LOG.md` §7): opens from the stored pack and history entry, shows a read-only note, hides Export receipt and Next quiz prompt, and refuses to open while an unfinished session of the same quiz exists
 - [x] P6-03 Topic mastery across exams (matched by normalized topic name)
 - [x] P6-04 Priority topics: weak in ≥ 2 distinct exams
 - [x] P6-05 Compare with previous exam: score delta, improved topics, still-weak topics
@@ -125,6 +125,16 @@ References: `PLAN.md` (why) · `ai/QUIZ_PACK_SPEC.md` · `ai/RECEIPT_SPEC.md` ·
 - [ ] P8-06 Bump `APP_VERSION`; deploy to a Vercel preview; test on a phone; promote to production — **bump done:** `APP_VERSION` and `package.json` are `2.0.0` (D21), the golden sample receipt and the prompt snapshots follow it, `npm test` passes. **Still to do by the owner:** deploy the preview, the phone pass in `QA_LOG.md` §6, promote
 - [ ] P8-07 Rollback plan confirmed (`v1-legacy` tag redeploys the old app) — **procedure written** in `README.md` "Release and rollback" (D22): Vercel does not deploy a bare tag, so it goes through a branch from the tag and Promote to Production. **Not confirmed:** the tag may not exist yet (P0-04 is open) and nobody has rehearsed a rollback. Check the tag, then rehearse once on a preview
 - [ ] P8-08 Optional: practice mode · timer · PWA/offline — **not started:** each of the three needs an owner decision first (see the questions at the end of the P8 hand-over; `PLAN.md` §11 also lists them as post-v2 backlog)
+
+## Bug flags (audit of 2026-10-31)
+Found by running the app in headless Chromium and by fuzzing the pure modules (`QA_LOG.md` §7). **Flags only: nothing below has been fixed.** No high-severity bug was found: the loop, grading, receipts, resume, backup/restore and the "no answers in the DOM" rule all behaved. Tick a flag when it is fixed (with a test where the code is pure) or when the owner decides to leave it.
+- [ ] BUG-01 *(Low)* **No storage warning at the start of an exam.** `startExam` in `js/main.js` ignores the result of `saveSession`, so when browser storage is blocked or full the "can't be saved" line (`#exStorageWarn`) only appears after the first answer or flag. Repro: open the app with `localStorage` throwing, load a pack, tap Start exam: no warning on question 1
+- [ ] BUG-02 *(Low)* **The Prompt Builder has no upper limit on the question count.** `#pbCount` has `min="1"` and no `max`, and `buildPrompt` accepts any whole number: 999,999,999 builds a normal prompt asking for that many questions. The loader already treats a `total_questions` above `MAX_PACK_QUESTIONS` (1000) as unknown, so such a pack could never report missing questions. Fix idea: cap at `MAX_PACK_QUESTIONS` with an error, in `promptBuilder.js` and on the input
+- [ ] BUG-03 *(Low, docs)* **Stale copies of the specs at the repository root.** `PLAN.md`, `PROMPT_TEMPLATES.md` and `QUIZ_PACK_SPEC.md` in the root are older than the files in `docs/` (no D11–D22, no TOPIC_BLOCK, no truncation / missing-question / merge rules); only `RECEIPT_SPEC.md` is identical. `AGENTS.md` names `docs/` as the source of truth, but an assistant that opens the root copies gets outdated rules. Needs an owner decision: delete the root copies, or replace them with a one-line pointer
+- [ ] BUG-04 *(Low, UI rule)* **Some controls are smaller than the 48px tap-target rule in `AGENTS.md`.** The jump-grid cells are 38×38 (`.jumpgrid` / `.jump` in `css/styles.css`; on the pack exam, Quick Paste and the Results review grid) and the "Start over" link button is 56×31 (`#exQuitBtn`, `#resetBtn`). Option buttons, nav buttons and the checkbox rows are fine. Open question: are the grid cells exempt? (the grid is dense on purpose, 130 cells)
+- [ ] BUG-05 *(Low, UX)* **One Back press after finishing an exam does nothing.** History is `/ → /exam → /results`; Back from Results lands on `#/exam`, the route guard sends a finished session straight back to Results, and only the second Back reaches the start screen. Fix idea: make that guard redirect replace the history entry
+- [ ] BUG-06 *(Cosmetic)* **Two wording slips.** The unsupported-file message reads "Choose a .json, .txt, .md file." (missing "or"; `js/ui/loadpack.js`); a Prompt Builder prompt for a single part says "in 1 parts of at most N" (`promptBuilder.js`, the parts block)
+- [ ] BUG-07 *(Edge case, needs a spec decision)* **The next-exam allocation can give a weak topic fewer than 2 questions, or none.** `RECEIPT_SPEC` §6 wants 60% of N for weak topics and at least 2 per weak topic; at N = 10 that is only 6 questions, so 4 weak topics get 2 / 2 / 1 / 1 and 7 weak topics leave one with no question (`allocateNextExam`, marked SPEC GAP in `analytics.js`). Sums are always exactly N. At the default N = 40 it starts only at 13 or more weak topics (each then gets 1)
 
 ---
 
