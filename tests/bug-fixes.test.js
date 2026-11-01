@@ -8,7 +8,7 @@ import { packFitsEntry, snapshotFromHistoryEntry } from '../js/analytics.js';
 import { loadSnapshots, rebuildLatestReceipt, prepareProfileReceipt, readHistory } from '../js/history.js';
 import { openProblem, OPEN_PROBLEMS } from '../js/progress.js';
 import { packKey } from '../js/constants.js';
-import { newStore, packWith, takeExam, answers, basePack } from './helpers.js';
+import { newStore, packWith, takeExam, answers, basePack, downgradeHistoryToV1 } from './helpers.js';
 import { validatePack } from '../js/validator.js';
 import { normalizePack } from '../js/loader.js';
 
@@ -65,10 +65,11 @@ test('BUG-09 packFitsEntry: same pack fits; other answers, other topic ids, othe
   assert.equal(packFitsEntry(entry, null), false);
 });
 
-test('BUG-09 an older exam does not take the topic names of a different pack saved under the same quiz id', () => {
+test('BUG-09 an older exam saved by version 1 does not take the topic names of a different pack saved under the same quiz id', () => {
   const { store } = newStore();
   const first = packWith('shared-01', topics(['t1', 'Alpha'], ['t2', 'Beta']));
   take(store, first, '2026-10-01T10:00:00.000Z', [1, 2]);
+  downgradeHistoryToV1(store);   // saved before the topic names were stored with the exam
   const second = packWith('shared-01', topics(['t1', 'Gamma'], ['t9', 'Delta']));   // other topic id, so a different exam
   take(store, second, '2026-10-02T10:00:00.000Z', [1, 2, 3, 4]);
   const [a, b] = loadSnapshots(store);
@@ -76,6 +77,17 @@ test('BUG-09 an older exam does not take the topic names of a different pack sav
   assert.equal(a.percent, 50);
   assert.deepEqual(b.topics.map((t) => t.name), ['Gamma', 'Delta']);
   assert.deepEqual(loadSnapshots(store).map((s) => s.quiz_id), ['shared-01', 'shared-01']);
+});
+
+test('BUG-09 an exam saved by version 2 keeps its own topic names, whatever pack is stored under the same quiz id later', () => {
+  const { store } = newStore();
+  take(store, packWith('shared-01', topics(['t1', 'Alpha'], ['t2', 'Beta'])), '2026-10-01T10:00:00.000Z', [1, 2]);
+  take(store, packWith('shared-01', topics(['t1', 'Gamma'], ['t9', 'Delta'])), '2026-10-02T10:00:00.000Z', [1, 2, 3, 4]);
+  const [a, b] = loadSnapshots(store);
+  assert.deepEqual(a.topics.map((t) => t.name), ['Alpha', 'Beta']);
+  assert.deepEqual(b.topics.map((t) => t.name), ['Gamma', 'Delta']);
+  assert.equal(readHistory(store).entries[0].entry_version, 2);
+  assert.deepEqual(readHistory(store).entries[0].topics, [{ id: 't1', name: 'Alpha' }, { id: 't2', name: 'Beta' }]);
 });
 
 test('BUG-09 the same pack taken twice still gives both exams their topics', () => {
@@ -115,27 +127,40 @@ test('BUG-09 a receipt is not rebuilt from a pack that belongs to another exam',
   assert.equal(prepareProfileReceipt(store).ok, false, 'no exam on the device can be rebuilt, so there is no profile receipt either');
 });
 
-test('BUG-09 the profile receipt takes topics only from packs that fit their exam', () => {
-  const { store } = newStore();
-  const old = packWith('shared-01', topics(['t1', 'Alpha'], ['t2', 'Beta']));
-  take(store, old, '2026-10-01T10:00:00.000Z', [1, 2]);
-  const fresh = packWith('shared-01', topics(['t1', 'Gamma'], ['t9', 'Delta']));
-  take(store, fresh, '2026-10-02T10:00:00.000Z', [1, 2, 3, 4]);
-  const prepared = prepareProfileReceipt(store);
-  assert.equal(prepared.ok, true);
-  const text = prepared.build().markdown;
-  assert.match(text, /Gamma/);
-  assert.doesNotMatch(text, /Alpha/, 'the old exam adds nothing: its own pack is gone');
+test('BUG-09 the profile receipt takes topics only from packs that fit their exam (version 1), and from the entry itself (version 2)', () => {
+  const build = (downgrade) => {
+    const { store } = newStore();
+    take(store, packWith('shared-01', topics(['t1', 'Alpha'], ['t2', 'Beta'])), '2026-10-01T10:00:00.000Z', [1, 2]);
+    if (downgrade) downgradeHistoryToV1(store);
+    take(store, packWith('shared-01', topics(['t1', 'Gamma'], ['t9', 'Delta'])), '2026-10-02T10:00:00.000Z', [1, 2, 3, 4]);
+    const prepared = prepareProfileReceipt(store);
+    assert.equal(prepared.ok, true);
+    return prepared.build().markdown;
+  };
+  const v1 = build(true);
+  assert.match(v1, /Gamma/);
+  assert.doesNotMatch(v1, /Alpha/, 'a version-1 exam adds nothing: its own pack is gone');
+  const v2 = build(false);
+  assert.match(v2, /Gamma/);
+  assert.match(v2, /Alpha/, 'a version-2 exam names its own topics');
+  assert.doesNotMatch(v2, /Alpha concept/, 'but its concepts come only from a pack that fits it');
 });
 
-// Pins down a known limit (hand-off notes): a history entry stores no topic names, so a pack that keeps every number, answer
-// and topic id but renames the topics cannot be told apart from the original. Closing this needs a history-entry change.
-test('BUG-09 KNOWN LIMIT: a pack with only the topic names changed still fits the older exam', () => {
+// BUG-09 (remainder): a pack that keeps every number, answer and topic id but renames the topics still "fits" an older exam.
+// An exam saved by version 2 no longer cares (it names its own topics); only an exam saved by version 1 still has this limit.
+test('BUG-09 a pack with only the topic names changed does not rename a version-2 exam', () => {
   const { store } = newStore();
-  const first = packWith('shared-01', topics(['t1', 'Alpha'], ['t2', 'Beta']));
-  take(store, first, '2026-10-01T10:00:00.000Z', [1, 2]);
-  const renamed = packWith('shared-01', topics(['t1', 'Gamma'], ['t2', 'Delta']));
-  take(store, renamed, '2026-10-02T10:00:00.000Z', [1, 2, 3, 4]);
+  take(store, packWith('shared-01', topics(['t1', 'Alpha'], ['t2', 'Beta'])), '2026-10-01T10:00:00.000Z', [1, 2]);
+  take(store, packWith('shared-01', topics(['t1', 'Gamma'], ['t2', 'Delta'])), '2026-10-02T10:00:00.000Z', [1, 2, 3, 4]);
+  assert.deepEqual(loadSnapshots(store)[0].topics.map((t) => t.name), ['Alpha', 'Beta']);
+  assert.deepEqual(loadSnapshots(store)[1].topics.map((t) => t.name), ['Gamma', 'Delta']);
+});
+
+test('BUG-09 KNOWN LIMIT (version-1 exams only): a pack with only the topic names changed still fits the older exam', () => {
+  const { store } = newStore();
+  take(store, packWith('shared-01', topics(['t1', 'Alpha'], ['t2', 'Beta'])), '2026-10-01T10:00:00.000Z', [1, 2]);
+  downgradeHistoryToV1(store);
+  take(store, packWith('shared-01', topics(['t1', 'Gamma'], ['t2', 'Delta'])), '2026-10-02T10:00:00.000Z', [1, 2, 3, 4]);
   assert.deepEqual(loadSnapshots(store)[0].topics.map((t) => t.name), ['Gamma', 'Delta']);
 });
 

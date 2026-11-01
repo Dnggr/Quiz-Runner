@@ -6,11 +6,12 @@
 // Phase 6 adds the other things that write to `history`: importing a receipt (P6-08), deleting one exam (P6-10) and
 // clearing everything (P6-10), and it builds the cumulative profile receipt (P6-07) that feeds the retention check (P6-11).
 import { STORAGE_KEYS, HISTORY_SCHEMA_VERSION, APP_VERSION, SPEC_VERSION, STATUS_ORDER, packKey } from './constants.js';
-import { snapshotFromHistoryEntry, packFitsEntry, packTopics, normalizeName } from './analytics.js';
+import { snapshotFromHistoryEntry, packFitsEntry, packTopics, storedTopics, normalizeName } from './analytics.js';
 import { ratingForPercent } from './grader.js';
 import { buildReceipt, coveredConcepts } from './receipt.js';
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const MAX_STORED_TOPICS = 200;   // a pack lists 6-15 topics (QUIZ_PACK_SPEC rule 7); this only stops a bogus pack from filling storage
 
 /**
  * @typedef {{
@@ -19,6 +20,7 @@ const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArr
  *   started_at: string, finished_at: string,
  *   spec_version: number, app_version: string,
  *   totals: object, outcomes: object[],
+ *   topics?: { id: string, name: string }[],   // version 2 (BUG-09): the topics as they were when the exam was taken
  * }} HistoryEntry
  */
 
@@ -43,6 +45,7 @@ export function buildHistoryEntry(session, graded) {
     app_version: APP_VERSION,
     totals: graded.totals,
     outcomes: graded.outcomes,
+    topics: packTopics(session.pack).slice(0, MAX_STORED_TOPICS).map((t) => ({ id: t.id.slice(0, 100), name: t.name.slice(0, 300) })),
   };
 }
 
@@ -194,10 +197,15 @@ export function profileTopics(entries, readPack, anchor) {
       }
       continue;
     }
+    // BUG-09: an entry that stored its topics (version 2) names them itself; an older one needs the pack it was taken on.
+    // Concepts come from the pack only when it is that pack (a pack stored under the same id for another exam says nothing).
     const pack = readPack(e.quiz_id);
-    if (!isPack(pack) || !packFitsEntry(e, pack)) continue;   // BUG-09: a pack stored under the same id for another exam says nothing about this one
-    const topics = packTopics(pack);
+    const fits = isPack(pack) && packFitsEntry(e, pack);
+    const kept = storedTopics(e);
+    const topics = kept.length > 0 ? kept : (fits ? packTopics(pack) : null);
+    if (topics === null) continue;
     for (const t of topics) take(t.id, t.name);
+    if (!fits) continue;
     for (const [name, list] of Object.entries(coveredConcepts(pack, topics))) {
       const topic = take(undefined, name);
       if (topic) addConcepts(topic, list);
@@ -336,6 +344,20 @@ export function receiptToEntry(parsed, { now = new Date() } = {}) {
   if (correct + wrong + skipped !== total) {
     return { ok: false, error: `The receipt's numbers do not add up (${correct} correct + ${wrong} wrong + ${skipped} skipped is not ${total}), so it was not imported. It may have been edited.` };
   }
+  // BUG-19: `unsure` flags questions of this exam, so it cannot be more than the exam has.
+  if (unsure > total) {
+    return { ok: false, error: `The receipt says ${unsure} questions were marked unsure, but the exam has only ${total} questions, so it was not imported. It may have been edited.` };
+  }
+  // BUG-19: the counts are the facts; `percent` and `rating` are worked out from them (same rule as the grader, BUG-11), and a
+  // receipt whose own numbers disagree is imported with the counts' values and a warning. A half point of slack lets a
+  // hand-rounded "72" through quietly.
+  const percent = Math.round((1000 * correct) / total) / 10;
+  const rating = ratingForPercent(percent);
+  if (Math.abs(result.percent - percent) > 0.5) {
+    warnings.push(`The receipt says ${text(String(result.percent), 20)}%, but its counts (${correct} of ${total}) give ${percent}%. The counts were used.`);
+  } else if (nonEmpty(result.rating) && text(result.rating, 50).toLowerCase() !== rating.toLowerCase()) {
+    warnings.push(`The receipt says the rating is “${text(result.rating, 50)}”, but ${percent}% is “${rating}”. The rating was worked out from the counts.`);
+  }
   const startedAt = new Date(startedMs).toISOString();
   const durationSec = Number.isFinite(exam.duration_sec) && exam.duration_sec >= 0 ? exam.duration_sec : null;
   const quizId = text(exam.quiz_id, 200);
@@ -352,8 +374,7 @@ export function receiptToEntry(parsed, { now = new Date() } = {}) {
     spec_version: Number.isFinite(d.version) ? d.version : SPEC_VERSION,
     app_version: text(d.app_version, 50),
     totals: {
-      total, correct, wrong, skipped, unsure, percent: result.percent,
-      rating: nonEmpty(result.rating) ? text(result.rating, 50) : ratingForPercent(result.percent),
+      total, correct, wrong, skipped, unsure, percent, rating,
     },
     outcomes: [],
     receipt_id: text(d.receipt_id, 300),

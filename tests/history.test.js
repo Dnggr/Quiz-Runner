@@ -6,7 +6,7 @@ import { gradeExam } from '../js/grader.js';
 import { createStore } from '../js/store.js';
 import { selectOption } from '../js/exam.js';
 import { STORAGE_PREFIX, STORAGE_KEYS, HISTORY_SCHEMA_VERSION, SPEC_VERSION, APP_VERSION, packKey } from '../js/constants.js';
-import { basePack } from './helpers.js';
+import { basePack, downgradeHistoryToV1 } from './helpers.js';
 
 function fakeStorage() {
   const data = new Map();
@@ -36,6 +36,7 @@ test('P3-09 buildHistoryEntry: ids, timestamps, versions, totals and per-questio
       entry_version: HISTORY_SCHEMA_VERSION, id: 'test-pack-01@2026-10-25T10:00:00.000Z', quiz_id: 'test-pack-01', title: 'Test pack',
       subject: 'Testing', quiz_type: 'custom', quiz_number: null, started_at: '2026-10-25T10:00:00.000Z',
       finished_at: '2026-10-25T10:20:00.000Z', spec_version: SPEC_VERSION, app_version: APP_VERSION, totals: undefined, outcomes: undefined,
+      topics: [{ id: 't1', name: 'One' }, { id: 't2', name: 'Two' }],   // BUG-09: the topic names are stored with the exam (entry version 2)
     },
   );
   assert.equal(e.totals.correct, 1);
@@ -105,7 +106,7 @@ test('P4-09 loadSnapshots: stored exams become snapshots with topic status rebui
   assert.deepEqual(snap.topics.map((t) => [t.name, t.status]), [['One', 'watch'], ['Two', 'weak']]);
 });
 
-test('P4-09 loadSnapshots: no history gives []; an exam whose pack is gone keeps its totals but has no topics; corrupt history gives []', () => {
+test('P4-09 loadSnapshots: no history gives []; an exam whose pack is gone keeps its topics (entry version 2) or, saved by version 1, has none; corrupt history gives []', () => {
   const storage = fakeStorage();
   const store = createStore({ storage });
   assert.deepEqual(loadSnapshots(store), []);
@@ -113,7 +114,10 @@ test('P4-09 loadSnapshots: no history gives []; an exam whose pack is gone keeps
   saveFinishedExam(store, s, gradeExam(s.pack, s.responses));
   store.remove(packKey('test-pack-01'));
   const [snap] = loadSnapshots(store);
-  assert.deepEqual([snap.percent, snap.topics], [25, []]);
+  assert.deepEqual([snap.percent, snap.topics.map((t) => t.name)], [25, ['One', 'Two']], 'BUG-09: the names are in the entry, so the pack is not needed');
+  downgradeHistoryToV1(store);
+  const [old] = loadSnapshots(store);
+  assert.deepEqual([old.percent, old.topics], [25, []], 'an entry saved by version 1 has no names and its pack is gone');
   store.set(STORAGE_KEYS.history, { not: 'an array' });
   assert.deepEqual(loadSnapshots(store), []);
   store.set(STORAGE_KEYS.history, [null, 5, { quiz_id: 'x' }]);

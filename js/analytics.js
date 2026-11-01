@@ -6,7 +6,7 @@ import {
   WEAK_MIN_MISSES, WEAK_MAX_ACCURACY, STRONG_MIN_N, STRONG_MIN_ACCURACY, STRONG_MAX_SHAKY,
   PRIORITY_MIN_EXAMS, IMPROVED_MIN_ACCURACY_GAIN, STATUS_ORDER,
   NEXT_EXAM_DEFAULT_N, NEXT_EXAM_MIN_N, NEXT_EXAM_MAX_N,
-  ALLOCATION_SHARES, ALLOCATION_MIN_PER_WEAK_TOPIC, ALLOCATION_MIN_PER_OTHER_TOPIC, DIFFICULTY_MIX_BY_GROUP,
+  ALLOCATION_SHARES, ALLOCATION_MIN_PER_WEAK_TOPIC, ALLOCATION_FLOOR_PER_WEAK_TOPIC, ALLOCATION_MIN_PER_OTHER_TOPIC, DIFFICULTY_MIX_BY_GROUP,
 } from './constants.js';
 import { ratingForPercent } from './grader.js';
 
@@ -173,12 +173,15 @@ export function largestRemainder(total, weights) {
 /**
  * Splits `quota` questions across topics in proportion to `weights`, with at least `min` per topic (§6 step 4).
  * Topics whose proportional share is below `min` are set to `min`, and the rest share what is left.
- * SPEC GAP: when `quota < min * topics` the minimums cannot all be met without going over the group's share
- * (and then over N), so the minimum is dropped and the quota is split proportionally.
+ * BUG-07: when `quota < min * topics` the minimum cannot be met for everyone without going over the group's share (and then
+ * over N). The share wins, but a topic is not dropped for it: the minimum falls to 1 per topic, and only when even that does
+ * not fit (`quota < topics`) do the first `quota` topics, in the order given (most missed first for weak topics), get 1 each.
+ * Topics with zero questions are never produced while `quota >= topics`.
  */
 function splitWithMinimum(quota, weights, min) {
   if (quota <= 0) return weights.map(() => 0);
-  if (quota < min * weights.length) return largestRemainder(quota, weights);
+  if (quota < weights.length) return weights.map((_, i) => (i < quota ? 1 : 0));
+  if (quota < min * weights.length) min = 1;   // quota >= topics here, so 1 each always fits
   const counts = weights.map(() => null);   // null = still shared proportionally
   for (;;) {
     const active = counts.map((c, i) => (c === null ? i : -1)).filter((i) => i >= 0);
@@ -214,6 +217,8 @@ const mixFor = (key) => ({ ...DIFFICULTY_MIX_BY_GROUP[key] });
  *  3. An empty group gives its share to the next group down (weak, then middle, then strong). If nothing is below,
  *     it goes to the nearest group above. With a single group that group gets 100%.
  *  4. Weak: split by misses, at least 2 per topic. Other groups: even split, at least 1 per topic.
+ *     BUG-07: when the weak share cannot hold 2 each, it gives 1 each; when it cannot hold even that, the share grows (taking
+ *     from strong first, then watch + developing) so that no weak topic has zero questions. N is never exceeded.
  *  5. Largest-remainder rounding, so the total is exactly N.
  *  6. Difficulty mix per group from constants.js.
  * SPEC GAP: `insufficient` topics belong to no group, so they get questions only when no topic has any other status
@@ -250,6 +255,21 @@ export function allocateNextExam(stats, n = NEXT_EXAM_DEFAULT_N) {
   });
 
   const quotas = largestRemainder(total, present.map((k) => share[k]));
+
+  // BUG-07: every weak topic gets at least ALLOCATION_FLOOR_PER_WEAK_TOPIC questions. If its share is smaller than that,
+  // the missing questions come from the other groups, strong first, then watch + developing (the lowest priority first).
+  const weakAt = present.indexOf('weak');
+  if (weakAt !== -1) {
+    let need = Math.min(total, groups.weak.length * ALLOCATION_FLOOR_PER_WEAK_TOPIC) - quotas[weakAt];
+    for (const key of [...GROUP_ORDER].reverse()) {
+      const at = present.indexOf(key);
+      if (need <= 0 || at === -1 || key === 'weak') continue;
+      const taken = Math.min(need, quotas[at]);
+      quotas[at] -= taken;
+      quotas[weakAt] += taken;
+      need -= taken;
+    }
+  }
   const allocations = [];
   present.forEach((key, i) => {
     const topics = groups[key];
@@ -327,13 +347,24 @@ function importedTopics(entry) {
 }
 
 /**
+ * BUG-09 (history entry version 2): the topics of an exam as they were when it was taken, `[{ id, name }]` in pack order.
+ * A version-1 entry has none (returns []); an unusable row is skipped. They are the one source of topic names that cannot be
+ * changed by a later exam that reuses the quiz id.
+ * @returns {{ id: string, name: string }[]}
+ */
+export function storedTopics(entry) {
+  const list = isPlainObject(entry) && Array.isArray(entry.topics) ? entry.topics : [];
+  return list.filter(isPlainObject).map((t) => ({ id: str(t.id), name: str(t.name) || str(t.id) })).filter((t) => t.id !== '');
+}
+
+/**
  * BUG-09: is `pack` the pack this stored exam was taken on? `pack:<quiz_id>` is keyed by quiz id only, so a later exam with
  * the same id (an AI can reuse one, and different subjects can slug to the same id) replaces the pack under the older exam.
  * It fits when it has as many questions as the exam has stored outcomes and, for every outcome, a question with the same
  * number, the same correct answer and the same topic id. Used before a stored pack is applied to an old exam, by the read-only
  * view (`openProblem`), the topic stats of a snapshot and the profile receipt, so they cannot disagree.
- * Known limit: a pack that keeps every number, answer and topic id but renames a topic still fits (a history entry does not
- * store topic names; see the hand-off notes).
+ * A pack that keeps every number, answer and topic id but renames a topic still fits. That no longer matters for topic names:
+ * an entry saved by version 2 carries its own (`storedTopics`), and only an older entry still takes them from the pack.
  * @param {object} entry  a stored history entry
  * @param {object | null} pack  the stored `pack:<quiz_id>`
  */
@@ -349,8 +380,9 @@ export function packFitsEntry(entry, pack) {
 
 /**
  * Snapshot of a stored `history` entry (history.js). `pack` is the stored `pack:<quiz_id>` or null.
- * BUG-09: the pack is used for the topics only when it is the one the exam was taken on (`packFitsEntry`); otherwise the exam
- * keeps its totals and has no topics, as when the pack is gone, instead of showing another exam's topic names.
+ * BUG-09: an entry that stored its topics (version 2) uses those names and needs no pack. An older entry uses the stored pack
+ * only when it is the one the exam was taken on (`packFitsEntry`); otherwise the exam keeps its totals and has no topics, as
+ * when the pack is gone, instead of showing another exam's topic names.
  * An exam imported from a receipt has no outcomes; its topics come from what the receipt said.
  * @returns {ExamSnapshot | null}  null when the entry is unusable
  */
@@ -358,7 +390,9 @@ export function snapshotFromHistoryEntry(entry, pack) {
   if (!isPlainObject(entry) || !isPlainObject(entry.totals)) return null;
   const t = entry.totals;
   if (![t.correct, t.total, t.percent].every(Number.isFinite) || typeof entry.quiz_id !== 'string') return null;
-  const stats = packFitsEntry(entry, pack) ? topicStats(pack, entry.outcomes) : [];
+  const kept = storedTopics(entry);
+  let stats = kept.length > 0 && Array.isArray(entry.outcomes) ? topicStats({ meta: { topics: kept } }, entry.outcomes) : [];
+  if (stats.length === 0 && packFitsEntry(entry, pack)) stats = topicStats(pack, entry.outcomes);
   return {
     id: String(entry.id ?? `${entry.quiz_id}@${entry.started_at ?? ''}`),
     quiz_id: entry.quiz_id,

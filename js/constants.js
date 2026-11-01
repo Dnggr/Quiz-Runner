@@ -17,7 +17,7 @@ export const SETTINGS_PROMPT_BUILDER_FIELD = 'promptBuilder';   // field of the 
 export const PROMPT_SETTINGS_VERSION = 1;                      // shape of that field; bump if it changes
 export const PACK_KEY_PREFIX = 'pack:';
 export const packKey = (quizId) => PACK_KEY_PREFIX + quizId;
-export const HISTORY_SCHEMA_VERSION = 1;   // shape of one `history` entry (P3-09); bump if it changes
+export const HISTORY_SCHEMA_VERSION = 2;   // shape of one `history` entry (P3-09); bump if it changes. 2 (BUG-09): entries carry `topics: [{ id, name }]`; version-1 entries are still read
 export const SESSION_SCHEMA_VERSION = 1;   // shape of the `session` record (P3-03); bump if it changes
 
 // ---- Backup file (P6-09) --------------------------------------------------
@@ -57,7 +57,8 @@ export const ALLOCATION_SHARES = Object.freeze({
   withWeak: Object.freeze({ weak: 0.60, middle: 0.25, strong: 0.15 }),   // middle = watch + developing
   noWeak: Object.freeze({ middle: 0.60, strong: 0.40 }),
 });
-export const ALLOCATION_MIN_PER_WEAK_TOPIC = 2;
+export const ALLOCATION_MIN_PER_WEAK_TOPIC = 2;   // preferred minimum; the weak share (60%) wins when it cannot hold it (BUG-07)
+export const ALLOCATION_FLOOR_PER_WEAK_TOPIC = 1; // a weak topic is never left without a question (BUG-07): the share grows at the other groups' cost instead
 export const ALLOCATION_MIN_PER_OTHER_TOPIC = 1;
 export const DIFFICULTY_MIX_BY_GROUP = Object.freeze({
   weak: Object.freeze({ easy: 0.30, moderate: 0.45, challenging: 0.25 }),
@@ -76,6 +77,9 @@ export const OPTION_LETTERS = Object.freeze(['A', 'B', 'C', 'D']);
 export const MIN_QUESTIONS_PER_TOPIC_INITIAL = 3;
 export const TRUE_FALSE_VALUES = Object.freeze(['True', 'False']);   // `selected` / `answer` values of a `tf` question
 export const DIFFICULTIES = Object.freeze(['easy', 'moderate', 'challenging']);   // QUIZ_PACK_SPEC §3.2
+export const QUIZ_TYPES = Object.freeze(['initial', 'targeted', 'retention', 'custom']);   // QUIZ_PACK_SPEC §3.1 `quiz_type` (BUG-20)
+export const QUESTION_TYPES = Object.freeze(['mc', 'tf']);                                // QUIZ_PACK_SPEC §3.2 `type` (BUG-15)
+export const ISSUE_EXAMPLE_NUMBERS = 5;   // pack-level warnings that name questions list this many question numbers, then "…"
 
 // ---- Resilience (DEV_CHECKLIST P7-01..P7-04) -----------------------------
 // SPEC GAP: the specs give no limits for these; they only keep a bogus pack or a huge error list from producing a huge prompt.

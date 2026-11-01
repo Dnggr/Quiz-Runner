@@ -32,7 +32,7 @@ Derived:
 | 60–74 | Fair |
 | below 60 | Needs work |
 
-Constants live in `constants.js` (`RATING_BANDS`).
+The percentage is rounded to one decimal (72.3) and the rating is taken from that **same rounded number**, so the percentage shown and the rating next to it never disagree: 269 of 299 is 89.967%, shown as 90 and rated Excellent (BUG-11). Constants live in `constants.js` (`RATING_BANDS`).
 
 ## 3. Topic status
 
@@ -71,7 +71,7 @@ Input: topic statuses, `N` (default 40, adjustable 10–130).
 1. Group shares of `N`: weak **60%**, watch + developing **25%**, strong **15%**.
 2. If there are no weak topics: watch + developing **60%**, strong **40%**.
 3. If a group is empty, give its share to the next group down the list (weak → watch/developing → strong → any topic). If only one group exists, it gets 100%.
-4. Within **weak**: split proportionally to `misses`, minimum 2 per weak topic. Within other groups: split evenly, minimum 1 per topic.
+4. Within **weak**: split proportionally to `misses`, minimum 2 per weak topic. Within other groups: split evenly, minimum 1 per topic. When the weak share (60% of `N`) cannot hold 2 for every weak topic, **the share wins over the minimum of 2**: the minimum falls to 1 per weak topic. A weak topic is never left without a question, because it could not be re-measured: when the share cannot hold even 1 each, it grows to the number of weak topics, taking the extra questions from the strong group first, then from watch + developing. If there are more weak topics than `N`, the most-missed topics get one question each and the rest get none (BUG-07).
 5. Round with the largest-remainder method so the total is exactly `N`.
 6. Suggested difficulty mix: weak topics 30% easy / 45% moderate / 25% challenging; strong topics 10 / 40 / 50; others 20 / 50 / 30.
 7. Always: new questions only (see `covered_concepts`), reuse the exact topic ids and names from the receipt.
@@ -216,8 +216,10 @@ Optional blocks: `missed`, `history`, `cumulative`, `covered_concepts` are prese
 
 - Accept `.json`, or `.md` (extract the JSON block between the markers).
 - Skip if `receipt_id` already exists in history.
+- The counts are the facts (BUG-19): `correct + wrong + skipped` must equal `exam.total` and `unsure` must not be more than `exam.total`, otherwise the receipt is refused ("may have been edited"). `percent` and `rating` are **recomputed from the counts** by the rules of §2 and the imported values are ignored; if the receipt's `percent` is more than 0.5 off, or its `rating` text differs, the import goes ahead with a warning.
 - If the pack for `exam.quiz_id` is not stored locally, keep the receipt's data (stats, missed questions) but disable "Open exam review".
 - Unknown `version`: warn and try best-effort import.
 
 ## 10. Changelog
 - v1 — initial format.
+- v1 (BUG-07, BUG-11, BUG-19) — §6 says which rule wins when the weak share cannot hold 2 questions per weak topic; §2 says the rating uses the rounded percentage; §9 lists the import checks (`unsure` within the total) and says `percent` and `rating` are recomputed. The receipt format itself is unchanged, so `SPEC_VERSION` stays 1.

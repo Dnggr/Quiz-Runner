@@ -11,7 +11,7 @@ import { gradeExam } from '../js/grader.js';
 import { selectOption } from '../js/exam.js';
 import { createStore } from '../js/store.js';
 import { STORAGE_PREFIX, STORAGE_KEYS, packKey } from '../js/constants.js';
-import { basePack } from './helpers.js';
+import { basePack, downgradeHistoryToV1 } from './helpers.js';
 
 function fakeStorage() {
   const data = new Map();
@@ -204,15 +204,26 @@ test('P6-04 retaking the same quiz does not make a topic a priority by itself', 
   assert.deepEqual(p.priority, []);
 });
 
-test('P6-04 an exam whose pack is gone adds no topics, so it cannot make anything a priority', () => {
+test('P6-04 an exam saved by version 1 whose pack is gone adds no topics, so it cannot make anything a priority', () => {
   const { store } = newStore();
   take(store, packOf('q1'), '2026-10-01T10:00:00.000Z', {});
   take(store, packOf('q2'), '2026-10-02T10:00:00.000Z', {});
   assert.equal(buildProgress(store).priority.length, 2);
+  downgradeHistoryToV1(store);   // as if both exams had been saved before BUG-09 stored the topic names
   store.remove(packKey('q2'));
   const p = buildProgress(store);
   assert.deepEqual(p.priority, []);
   assert.equal(p.exams.length, 2);
+});
+
+test('BUG-09 an exam saved by version 2 keeps its topics when its pack is gone, so priority topics survive a deleted pack', () => {
+  const { store } = newStore();
+  take(store, packOf('q1'), '2026-10-01T10:00:00.000Z', {});
+  take(store, packOf('q2'), '2026-10-02T10:00:00.000Z', {});
+  const before = buildProgress(store).priority;
+  assert.equal(before.length, 2);
+  store.remove(packKey('q2'));
+  assert.deepEqual(buildProgress(store).priority, before);
 });
 
 // ---- P6-05: compare with the previous exam -----------------------------------------------------------------------

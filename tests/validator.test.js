@@ -99,16 +99,17 @@ test('error: a question that is not an object is reported without crashing the r
   assert.deepEqual(codes(errors), ['bad_question', 'bad_question']);
 });
 
-test('a question without a `number` is labelled by its position, and does not cause false duplicates', () => {
+test('a question without a `number` is labelled by its position, is a bad_number error (BUG-08), and does not cause false duplicates', () => {
   const p = basePack();
   delete p.questions[0].number;
   delete p.questions[1].number;
   delete p.questions[0].answer;
   const { errors } = run(p);
-  assert.deepEqual(codes(errors), ['missing_answer']);
+  assert.deepEqual(codes(errors), ['bad_number', 'missing_answer', 'bad_number']);   // no duplicate_number for the two unnumbered questions
   assert.equal(errors[0].number, null);
   assert.equal(errors[0].index, 0);
   assert.match(errors[0].message, /position 1/);
+  assert.match(errors[2].message, /position 2/);
 });
 
 test('missing meta entirely: only the topic errors, no crash', () => {

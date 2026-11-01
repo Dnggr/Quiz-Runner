@@ -28,7 +28,8 @@ export function ratingForPercent(percent) {
  *   a missing entry counts as skipped and not unsure
  * @returns {{ outcomes: QuestionResult[], totals: Totals }}
  *   `outcomes` is in pack order. `totals.unsure` counts every flagged question, whatever its outcome.
- *   `totals.percent` = correct / total, one decimal (70, 72.3); the rating uses the unrounded value.
+ *   `totals.percent` = correct / total, one decimal (70, 72.3). BUG-11: the rating uses that same rounded number, so the
+ *   percentage a learner sees and the rating next to it never disagree (89.97% is shown as 90 and rated Excellent).
  */
 export function gradeExam(pack, responses) {
   const questions = isPlainObject(pack) && Array.isArray(pack.questions) ? pack.questions.filter(isPlainObject) : [];
@@ -59,13 +60,13 @@ export function gradeExam(pack, responses) {
   });
 
   const total = outcomes.length;
-  const exactPercent = total === 0 ? 0 : (100 * correct) / total;
+  const percent = total === 0 ? 0 : Math.round((1000 * correct) / total) / 10;
   return {
     outcomes,
     totals: {
       total, correct, wrong, skipped, unsure,
-      percent: Math.round(exactPercent * 10) / 10,
-      rating: ratingForPercent(exactPercent),
+      percent,
+      rating: ratingForPercent(percent),
     },
   };
 }

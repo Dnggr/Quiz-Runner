@@ -166,9 +166,13 @@ If asked to split into parts: every part is a **complete, valid pack** with iden
 
 ## 7. Loader/validator behavior (for developers)
 
-- **Errors (block loading):** not JSON after cleanup (and not a cut-off reply, see "Truncated output") · no `questions` · question missing `question`, `answer`, or `topic` · `answer` not among options · duplicate `number` · `topic` not in `meta.topics`.
-- **Warnings (load anyway):** count ≠ `meta.total_questions` · missing `explanation` or `concept` · option count ≠ 4 · any correct letter above 40% of questions · `version` differs from the app's `SPEC_VERSION`.
-- **Normalization:** uppercase option letters and answers, trim whitespace, infer `type` (`tf` if no `options`), default `part`/`total_parts` to 1.
+- **Errors (block loading):** not JSON after cleanup (and not a cut-off reply, see "Truncated output") · no `questions` · question missing `question`, `answer`, or `topic` · `answer` not among options · duplicate `number` · `topic` not in `meta.topics` · `number` missing, or not a whole number of 1 or more (BUG-08) · an option of a multiple-choice question that is empty or not text (BUG-12).
+- **Warnings (load anyway):** count ≠ `meta.total_questions` · missing `explanation` or `concept` · option count ≠ 4 · any correct letter above 40% of questions · `version` differs from the app's `SPEC_VERSION` · the same topic `id` listed twice in `meta.topics` (BUG-12; the later entry is used) · a question `type` that is not `mc` or `tf` (BUG-15; it is treated as `mc`) · `meta.quiz_type` not one of `initial`, `targeted`, `retention`, `custom`, and a `difficulty` or `skill` outside the lists in §3.2 (BUG-20; the value is kept as written, and an unknown `difficulty` counts as "no difficulty given") · `total_questions`, `part`, `total_parts` or `quiz_number` present but not a whole number of 1 or more (BUG-17; the app ignores it). An absent `total_questions` is not a warning: the count is simply unknown.
+- **Normalization:** uppercase option letters and answers, trim whitespace, infer `type` (`tf` if no `options`), default `part`/`total_parts` to 1, and (BUG-08, BUG-12, BUG-15, BUG-17, BUG-20):
+  - a whole number written as digits in text (`"3"`, `"130"`) becomes a number: question `number`, `meta.total_questions`, `part`, `total_parts`, `quiz_number`. Anything else that is not a whole number is not converted (see the errors and warnings above). §2 still tells the AI to write numbers as numbers; this only forgives the slip;
+  - `type` is lowercased and the usual spellings are mapped: `TF`, `True/False`, `true or false` → `tf`; `MC`, `Multiple Choice` → `mc`;
+  - `meta.quiz_type`, `difficulty` and `skill` are lowercased;
+  - an option written as a number (`"A": 5`) becomes text (`"5"`).
 
 ### Truncated output (P7-01)
 If the text stops in the middle of the JSON (the AI's reply was cut off) and a `"questions"` list had started, the loader keeps every question object that is complete, drops the one that was being written, and loads the rest as a normal pack. The count warning applies as usual, and the app shows "Loaded 97 of 130". If no complete question can be kept (for example the text stops inside `meta`), nothing loads and the ordinary "cut off" error is shown.
@@ -186,3 +190,4 @@ A pack loaded while a pack with the same `quiz_id` is still waiting on the Topic
 ## 8. Changelog
 - v1 — initial format.
 - v1 (P7) — documented the loader's handling of truncated output, missing questions and multi-part merging (§7). The format itself is unchanged, so `SPEC_VERSION` stays 1.
+- v1 (BUG-08, BUG-12, BUG-15, BUG-17, BUG-20) — §7 now names a missing or non-integer `number` and an empty or non-text option as errors, lists the new warnings (duplicate topic id, unknown `type`, `quiz_type`, `difficulty`, `skill`, a count that is not a whole number) and the normalization of numbers written as text, `type`, `quiz_type`, `difficulty`, `skill` and numeric option text. The format itself is unchanged (§3 already said `number` is a required integer), so `SPEC_VERSION` stays 1.

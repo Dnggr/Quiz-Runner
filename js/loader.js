@@ -306,11 +306,26 @@ function trimDeep(value) {
 
 const isBlank = (v) => v === undefined || v === null || v === '';
 
+/** BUG-08 / BUG-17: AIs sometimes write a whole number as text ("3", "130"). Digits only become a number; anything else is left for the validator. */
+const wholeNumberFromText = (v) => (typeof v === 'string' && /^\d{1,15}$/.test(v) ? Number(v) : v);
+
+/** BUG-15: the spellings of the two question types an AI is likely to write, compared without case, spaces, hyphens, slashes and underscores. */
+const TYPE_ALIASES = Object.freeze({
+  mc: 'mc', mcq: 'mc', multiplechoice: 'mc',
+  tf: 'tf', truefalse: 'tf', trueorfalse: 'tf',
+});
+const typeKey = (s) => s.toLowerCase().replace(/[\s/_-]+/g, '');
+
 /**
  * Normalize a parsed pack. Returns a new object; the input is not modified.
  *  - trim whitespace in every string (and object key)
  *  - uppercase option letters and `mc` answers; `tf` answers become exactly "True" / "False"
+ *  - option text written as a number becomes text (BUG-12); other non-text options are left for the validator to report
+ *  - `type`: lowercase, and the usual spellings ("TF", "True/False", "multiple choice") become `tf` / `mc` (BUG-15)
  *  - infer `type` when missing: `tf` if there are no options, otherwise `mc`
+ *  - whole numbers written as digit text become numbers: question `number`, `meta.total_questions`, `part`, `total_parts`,
+ *    `quiz_number` (BUG-08, BUG-17)
+ *  - lowercase `meta.quiz_type` and each question's `difficulty` and `skill` (BUG-20)
  *  - default `meta.part` and `meta.total_parts` to 1
  * Anything that is not a pack-shaped object is returned unchanged (the validator reports it).
  */
@@ -319,6 +334,8 @@ export function normalizePack(pack) {
   const out = trimDeep(pack);
 
   if (isPlainObject(out.meta)) {
+    for (const key of ['total_questions', 'part', 'total_parts', 'quiz_number']) out.meta[key] = wholeNumberFromText(out.meta[key]);
+    if (typeof out.meta.quiz_type === 'string') out.meta.quiz_type = out.meta.quiz_type.toLowerCase();
     if (isBlank(out.meta.part)) out.meta.part = 1;
     if (isBlank(out.meta.total_parts)) out.meta.total_parts = 1;
   }
@@ -327,15 +344,23 @@ export function normalizePack(pack) {
     for (const q of out.questions) {
       if (!isPlainObject(q)) continue;
 
+      q.number = wholeNumberFromText(q.number);
+      if (typeof q.difficulty === 'string') q.difficulty = q.difficulty.toLowerCase();
+      if (typeof q.skill === 'string') q.skill = q.skill.toLowerCase();
+
       if (isPlainObject(q.options)) {
         const upper = {};
         for (const [key, text] of Object.entries(q.options)) {
           const letter = key.toUpperCase();
-          if (!(letter in upper)) upper[letter] = text;      // if "a" and "A" both exist, the first one wins
+          if (!(letter in upper)) upper[letter] = typeof text === 'number' && Number.isFinite(text) ? String(text) : text;   // if "a" and "A" both exist, the first one wins
         }
         q.options = upper;
       }
 
+      if (typeof q.type === 'string') {
+        const alias = TYPE_ALIASES[typeKey(q.type)];
+        q.type = alias !== undefined ? alias : q.type.toLowerCase();
+      }
       if (isBlank(q.type)) q.type = isBlank(q.options) ? 'tf' : 'mc';
 
       if (typeof q.answer === 'string') {

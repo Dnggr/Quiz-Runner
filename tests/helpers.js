@@ -6,7 +6,8 @@ import { createStore } from '../js/store.js';
 import { buildSession } from '../js/session.js';
 import { gradeExam } from '../js/grader.js';
 import { selectOption } from '../js/exam.js';
-import { saveFinishedExam } from '../js/history.js';
+import { saveFinishedExam, readHistory } from '../js/history.js';
+import { STORAGE_KEYS } from '../js/constants.js';
 import { strict as assert } from 'node:assert';
 
 const samples = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'samples');
@@ -86,3 +87,9 @@ export function takeExam(store, pack, startedAt, picks = {}) {
 
 /** Answers for `packWith` packs: `right` = question numbers answered correctly, every other one is wrong ("B"). */
 export const answers = (pack, right = []) => Object.fromEntries(pack.questions.map((q) => [q.number, right.includes(q.number) ? 'A' : 'B']));
+
+/** BUG-09: rewrite every stored history entry the way version 1 saved it (no `topics`), to test the fallback for exams saved before version 2. */
+export function downgradeHistoryToV1(store) {
+  const { entries } = readHistory(store);
+  store.set(STORAGE_KEYS.history, entries.map(({ topics, ...rest }) => ({ ...rest, entry_version: 1 })));
+}

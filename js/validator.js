@@ -3,15 +3,22 @@
 //
 //   ERRORS   block loading.   missing `questions` · missing `question` / `answer` / `topic`
 //                             · answer not in options · duplicate `number` · topic id not in `meta.topics`
+//                             · `number` missing or not a whole number from 1 up (BUG-08)
+//                             · an option that is empty or not text (BUG-12)
 //   WARNINGS load anyway.     count ≠ `meta.total_questions` · missing `explanation` · any correct letter > 40%
 //                             · option count ≠ 4 · missing `concept` · `version` ≠ SPEC_VERSION (P2-08)
+//                             · the same topic id twice in `meta.topics` (BUG-12) · a `type` that is not mc / tf (BUG-15)
+//                             · `quiz_type`, `difficulty` or `skill` outside the listed values (BUG-20)
+//                             · `total_questions`, `part`, `total_parts` or `quiz_number` that is not a whole number (BUG-17)
 //
 // BUG-18: a wrong SHAPE (options as a list, a number as a topic id) is still an error, but the message names the real
 // problem instead of "no options" / "missing topic". Same blocking rules as before; only the wording and two new codes.
 //
 // Every issue carries the question number (or null for pack-level issues) so the error screen (P2-06)
 // can group problems by question: see `groupIssues`. Thresholds come from constants.js.
-import { ANSWER_SKEW_MAX_SHARE, EXPECTED_OPTION_COUNT, SPEC_VERSION } from './constants.js';
+import {
+  ANSWER_SKEW_MAX_SHARE, EXPECTED_OPTION_COUNT, SPEC_VERSION, QUIZ_TYPES, QUESTION_TYPES, DIFFICULTIES, SKILLS, ISSUE_EXAMPLE_NUMBERS,
+} from './constants.js';
 
 /**
  * @typedef {{ code: string, message: string, number: number | null, index: number | null }} Issue
@@ -54,6 +61,17 @@ export function validatePack(pack) {
   const topicIds = new Set(usableTopics.map((t) => t.id));
   const topicsWithoutTextId = topicEntries.length - usableTopics.length;
 
+  // BUG-12: the same topic id twice. Grading is not affected (a question names an id), but one of the two names is lost, so it is a warning.
+  const seenTopicIds = new Set();
+  const repeatedTopicIds = [];
+  for (const t of usableTopics) {
+    if (seenTopicIds.has(t.id) && !repeatedTopicIds.includes(t.id)) repeatedTopicIds.push(t.id);
+    seenTopicIds.add(t.id);
+  }
+  for (const id of repeatedTopicIds) {
+    warn('duplicate_topic_id', `meta.topics lists the id ${JSON.stringify(shortText(id))} more than once. Only one entry is used (the later one, with its name), so the other topic name is lost. Each topic needs its own id.`);
+  }
+
   // ---- per question --------------------------------------------------------
   const firstIndexOfNumber = new Map();   // number -> index of first use
   const reportedDuplicate = new Set();
@@ -64,6 +82,11 @@ export function validatePack(pack) {
       return;
     }
     const who = label(q, index);
+
+    // BUG-08: `number` keys the answers and the grading, so a question without a usable one cannot be graded correctly
+    if (!isQuestionNumber(q.number)) {
+      error('bad_number', `${who} needs a "number" that is a whole number from 1 up (1, 2, 3 …), but ${describeNumber(q.number)}.`, q, index);
+    }
 
     // required text fields
     if (!hasText(q.question)) error('missing_question', `${who} is missing its "question" text.`, q, index);
@@ -92,6 +115,15 @@ export function validatePack(pack) {
       }
     }
 
+    // BUG-12: every option of a multiple-choice question must be text with something in it (a blank button cannot be answered or read)
+    if (q.type !== 'tf' && isPlainObject(q.options)) {
+      const bad = Object.entries(q.options).filter(([, v]) => !hasText(v)).map(([letter]) => letter);
+      if (bad.length > 0) {
+        const names = bad.map((l) => JSON.stringify(shortText(l))).join(', ');
+        error('option_not_text', `${who}: ${bad.length === 1 ? `option ${names} is` : `options ${names} are`} empty or not text. Every option must be text.`, q, index);
+      }
+    }
+
     // topic must exist in meta.topics
     if (hasText(q.topic) && !topicIds.has(q.topic)) {
       let hint = '';
@@ -106,7 +138,7 @@ export function validatePack(pack) {
     }
 
     // duplicate numbers: one error per repeated number, pointing at both positions
-    if (q.number !== undefined && q.number !== null) {
+    if (isQuestionNumber(q.number)) {
       if (firstIndexOfNumber.has(q.number)) {
         if (!reportedDuplicate.has(q.number)) {
           reportedDuplicate.add(q.number);
@@ -123,6 +155,9 @@ export function validatePack(pack) {
     }
 
     // ---- warnings that belong to one question ----------------------------
+    if (hasText(q.type) && !QUESTION_TYPES.includes(q.type)) {
+      warn('unknown_type', `${who} has the type ${JSON.stringify(shortText(q.type))}; it should be "mc" or "tf". It is treated as multiple choice.`, q, index);
+    }
     if (!hasText(q.explanation)) warn('missing_explanation', `${who} has no explanation.`, q, index);
     if (!hasText(q.concept)) warn('missing_concept', `${who} has no concept tag.`, q, index);
     if (q.type !== 'tf' && isPlainObject(q.options)) {
@@ -138,8 +173,30 @@ export function validatePack(pack) {
     warn('version_mismatch', versionMessage(pack.version));
   }
 
+  // BUG-20: fixed-value fields. A value outside the list is kept as written and only reported.
+  if (hasText(meta.quiz_type) && !QUIZ_TYPES.includes(meta.quiz_type)) {
+    warn('quiz_type_unknown', `meta.quiz_type is ${JSON.stringify(shortText(meta.quiz_type))}; it should be one of ${QUIZ_TYPES.join(', ')}. The pack still loads, and the value is kept as written.`);
+  }
+  for (const [field, allowed, effect] of [
+    ['difficulty', DIFFICULTIES, 'They count as "no difficulty given".'],
+    ['skill', SKILLS, 'They are kept as written.'],
+  ]) {
+    const odd = questions.map((q, index) => ({ q, index })).filter(({ q }) => isPlainObject(q) && hasText(q[field]) && !allowed.includes(q[field]));
+    if (odd.length > 0) {
+      warn(`${field}_unknown`, `${odd.length} ${odd.length === 1 ? 'question has' : 'questions have'} a "${field}" outside the listed values (${allowed.join(', ')}): ${examples(odd)}. ${effect}`);
+    }
+  }
+
+  // BUG-17: a count or part number that is not a whole number is ignored by the app (nothing can be compared with it), so say so.
+  for (const field of ['total_questions', 'part', 'total_parts', 'quiz_number']) {
+    const v = meta[field];
+    if (v !== undefined && v !== null && v !== '' && !(Number.isInteger(v) && v >= 1)) {
+      warn('meta_number_invalid', `meta.${field} should be a whole number of 1 or more, but ${describeNumber(v)}. The app ignores it.`);
+    }
+  }
+
   const totalParts = Number.isFinite(meta.total_parts) ? meta.total_parts : 1;
-  if (Number.isFinite(meta.total_questions) && totalParts <= 1 && meta.total_questions !== questions.length) {
+  if (Number.isInteger(meta.total_questions) && meta.total_questions >= 1 && totalParts <= 1 && meta.total_questions !== questions.length) {   // BUG-17: an unusable count has its own warning
     warn('count_mismatch', `meta.total_questions says ${meta.total_questions} but the pack has ${questions.length} questions.`);
   }
 
@@ -169,6 +226,26 @@ function kindOf(v) {
   if (typeof v === 'number') return 'a number';
   if (typeof v === 'boolean') return 'true or false';
   return 'text';
+}
+
+/** BUG-08: a question number is a whole number from 1 up (QUIZ_PACK_SPEC rule 10: numbered 1…N). */
+const isQuestionNumber = (n) => Number.isInteger(n) && n >= 1;
+
+/** BUG-08 / BUG-17: describes a value that should have been a whole number. Pack content is untrusted: only plain numbers are echoed. */
+function describeNumber(v) {
+  if (v === undefined || v === null || v === '') return 'there is none';
+  if (typeof v === 'number') return Number.isFinite(v) ? `it is ${v}` : 'it is not a usable number';
+  if (typeof v === 'string') return 'it is text that is not a whole number';
+  return `it is ${kindOf(v)}`;
+}
+
+/** Pack text echoed into a message is cut short (it is untrusted and can be any length). */
+const shortText = (v) => (String(v).length > 40 ? `${String(v).slice(0, 40)}…` : String(v));
+
+/** `questions 3, 7, 12 …` for a pack-level warning; at most ISSUE_EXAMPLE_NUMBERS are named. A question without a usable number is named by its position. */
+function examples(list) {
+  const names = list.map(({ q, index }) => (isQuestionNumber(q.number) ? String(q.number) : `at position ${index + 1}`));
+  return `question${names.length === 1 ? '' : 's'} ${names.slice(0, ISSUE_EXAMPLE_NUMBERS).join(', ')}${names.length > ISSUE_EXAMPLE_NUMBERS ? ' …' : ''}`;
 }
 
 function numberOf(q) {
