@@ -5,7 +5,7 @@
 import { packKey, RATING_BANDS } from './constants.js';
 import { readHistory } from './history.js';
 import {
-  snapshotFromHistoryEntry, sortSnapshots, normalizeName, priorityTopics, topicMastery, compareWithPrevious,
+  snapshotFromHistoryEntry, packFitsEntry, sortSnapshots, normalizeName, priorityTopics, topicMastery, compareWithPrevious,
 } from './analytics.js';
 import { toOffsetIso } from './receipt.js';
 
@@ -35,10 +35,7 @@ export function openProblem(entry, pack) {
   if (isPlainObject(entry) && isPlainObject(entry.imported) && (!Array.isArray(entry.outcomes) || entry.outcomes.length === 0)) return OPEN_PROBLEMS.imported;   // P6-08
   if (!isPlainObject(pack) || !Array.isArray(pack.questions) || pack.questions.length === 0) return OPEN_PROBLEMS.noPack;
   if (!isPlainObject(entry) || !Array.isArray(entry.outcomes) || entry.outcomes.length === 0) return OPEN_PROBLEMS.noAnswers;
-  if (entry.outcomes.length !== pack.questions.length) return OPEN_PROBLEMS.mismatch;
-  const answers = new Map(pack.questions.filter(isPlainObject).map((q) => [q.number, q.answer]));
-  const fits = entry.outcomes.every((o) => isPlainObject(o) && answers.has(o.number) && answers.get(o.number) === o.answer);
-  return fits ? null : OPEN_PROBLEMS.mismatch;
+  return packFitsEntry(entry, pack) ? null : OPEN_PROBLEMS.mismatch;   // BUG-09: one shared check (analytics.js)
 }
 
 /**

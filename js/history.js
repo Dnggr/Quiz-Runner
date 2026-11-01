@@ -6,7 +6,7 @@
 // Phase 6 adds the other things that write to `history`: importing a receipt (P6-08), deleting one exam (P6-10) and
 // clearing everything (P6-10), and it builds the cumulative profile receipt (P6-07) that feeds the retention check (P6-11).
 import { STORAGE_KEYS, HISTORY_SCHEMA_VERSION, APP_VERSION, SPEC_VERSION, STATUS_ORDER, packKey } from './constants.js';
-import { snapshotFromHistoryEntry, packTopics, normalizeName } from './analytics.js';
+import { snapshotFromHistoryEntry, packFitsEntry, packTopics, normalizeName } from './analytics.js';
 import { ratingForPercent } from './grader.js';
 import { buildReceipt, coveredConcepts } from './receipt.js';
 
@@ -117,6 +117,10 @@ export function rebuildLatestReceipt(store, { now = new Date(), tzOffsetMinutes 
   if (!isPlainObject(pack) || !Array.isArray(pack.questions)) {
     return { ok: false, error: `The latest exam (“${latest.title || latest.quiz_id}”) is stored, but its question pack is gone, so its receipt cannot be rebuilt. Paste a receipt instead.` };
   }
+  if (!packFitsEntry(latest, pack)) {
+    // BUG-09: `pack:<quiz_id>` now holds the questions of another exam with the same id (e.g. after a backup was restored).
+    return { ok: false, error: `The latest exam (“${latest.title || latest.quiz_id}”) is stored, but the saved questions under its id belong to a different exam now, so its receipt cannot be rebuilt here. Paste a receipt instead.` };
+  }
   const receipt = buildReceipt({
     pack,
     graded: { outcomes: latest.outcomes, totals: latest.totals },
@@ -141,8 +145,8 @@ const timeOf = (e) => { const ms = Date.parse(e.finished_at || e.started_at); re
 const isPack = (p) => isPlainObject(p) && Array.isArray(p.questions) && p.questions.length > 0;
 /** Stored outcomes are a list of objects. A damaged entry (P7-07) can hold anything in that list; it is never rebuilt into a receipt. */
 const hasWellFormedOutcomes = (e) => Array.isArray(e.outcomes) && e.outcomes.every(isPlainObject);
-/** An exam that can be turned back into a receipt: its pack is stored and so are its graded outcomes. */
-const rebuildable = (e, pack) => isPack(pack) && hasWellFormedOutcomes(e) && e.outcomes.length > 0 && isPlainObject(e.totals);
+/** An exam that can be turned back into a receipt: its pack is stored (and is the one it was taken on, BUG-09) and so are its graded outcomes. */
+const rebuildable = (e, pack) => isPack(pack) && hasWellFormedOutcomes(e) && e.outcomes.length > 0 && isPlainObject(e.totals) && packFitsEntry(e, pack);
 const nonEmpty = (v) => typeof v === 'string' && v.trim() !== '';
 
 /**
@@ -191,7 +195,7 @@ export function profileTopics(entries, readPack, anchor) {
       continue;
     }
     const pack = readPack(e.quiz_id);
-    if (!isPack(pack)) continue;
+    if (!isPack(pack) || !packFitsEntry(e, pack)) continue;   // BUG-09: a pack stored under the same id for another exam says nothing about this one
     const topics = packTopics(pack);
     for (const t of topics) take(t.id, t.name);
     for (const [name, list] of Object.entries(coveredConcepts(pack, topics))) {

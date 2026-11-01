@@ -133,3 +133,10 @@ test('BUG-04 the "Start over" link button (both exam screens) is at least 48x48'
   assert.match(rule.body, /min-width:\s*48px/);
   for (const id of ['resetBtn', 'exQuitBtn']) assert.match(html, new RegExp(`class="link-btn" id="${id}"`), `${id} uses .link-btn`);
 });
+
+// ---- BUG-14: the 48px tap-target rule for the disclosure rows ("Show the prompt", ...) ------------------------------------
+test('BUG-14 the <summary> toggles inside .warn-details are at least 48px tall', () => {
+  const rule = cssRules(css).find((r) => r.selectors.split(',').map((x) => x.trim()).includes('.warn-details summary'));
+  assert.ok(rule, 'a .warn-details summary rule exists');
+  assert.match(rule.body, /min-height:\s*48px/);
+});

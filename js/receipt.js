@@ -99,14 +99,32 @@ export const receiptIdFor = (quizId, createdAtLocal) => `qr-${quizId}-${createdA
 export const slugify = (s) => String(s ?? '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'quiz';
 
+/** Escapes text for use inside a RegExp. */
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
- * Number for the next exam's id: distinct exams (quiz ids) already taken in this subject, plus one.
- * SPEC GAP: PROMPT_TEMPLATES says the builder "increments NN using local history" but not how. This is the receipt's
- * rule until the Prompt Builder (P5) fixes one.
+ * Number for the next exam's id (`<subject-slug>-<mode>-<NN>`): one more than the larger of
+ *   - the highest `NN` already used in a stored quiz id of this subject slug (any mode), and
+ *   - the number of distinct exams (quiz ids) stored for this slug.
+ * BUG-16: counting alone reused an id after an exam was deleted (only `networks-initial-02` left, so the next one was `-02` again).
+ * BUG-10: the count was per subject name, but the id carries only the slug, and different subjects can share one ("C++", "C#" and "C"
+ * are all `c`; a subject with no Latin letters or digits is `quiz`), so the slug is what is numbered. The count stays as a floor so ids
+ * that do not follow the pattern (a pack the AI named freely) still push the number up, as before.
+ * SPEC GAP: PROMPT_TEMPLATES says the builder "increments NN using local history" but not how (recorded as PLAN D24).
+ * @param {{ quiz_id?: string, subject?: string }[]} snapshots  exams on this device
+ * @param {string} subject  the subject the learner typed
  */
 export function nextQuizNumber(snapshots, subject) {
-  const key = normalizeName(subject);
-  return new Set(snapshots.filter((s) => normalizeName(s.subject) === key).map((s) => s.quiz_id)).size + 1;
+  const slug = slugify(subject);
+  const exams = (Array.isArray(snapshots) ? snapshots : []).filter(isPlainObject);
+  const ofThisSlug = new Set(exams.filter((s) => slugify(s.subject) === slug).map((s) => s.quiz_id));
+  const numbered = new RegExp(`^${escapeRegExp(slug)}-[a-z]+-(\\d+)$`);
+  let highest = 0;
+  for (const s of exams) {
+    const m = numbered.exec(typeof s.quiz_id === 'string' ? s.quiz_id : '');
+    if (m) highest = Math.max(highest, Number(m[1]));
+  }
+  return Math.max(ofThisSlug.size, highest) + 1;
 }
 
 /** `<subject-slug>-<mode>-<NN>` (PROMPT_TEMPLATES "Builder options"). */

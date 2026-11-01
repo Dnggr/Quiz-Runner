@@ -327,7 +327,30 @@ function importedTopics(entry) {
 }
 
 /**
+ * BUG-09: is `pack` the pack this stored exam was taken on? `pack:<quiz_id>` is keyed by quiz id only, so a later exam with
+ * the same id (an AI can reuse one, and different subjects can slug to the same id) replaces the pack under the older exam.
+ * It fits when it has as many questions as the exam has stored outcomes and, for every outcome, a question with the same
+ * number, the same correct answer and the same topic id. Used before a stored pack is applied to an old exam, by the read-only
+ * view (`openProblem`), the topic stats of a snapshot and the profile receipt, so they cannot disagree.
+ * Known limit: a pack that keeps every number, answer and topic id but renames a topic still fits (a history entry does not
+ * store topic names; see the hand-off notes).
+ * @param {object} entry  a stored history entry
+ * @param {object | null} pack  the stored `pack:<quiz_id>`
+ */
+export function packFitsEntry(entry, pack) {
+  if (!isPlainObject(entry) || !Array.isArray(entry.outcomes) || entry.outcomes.length === 0) return false;
+  if (!isPlainObject(pack) || !Array.isArray(pack.questions) || pack.questions.length !== entry.outcomes.length) return false;
+  const byNumber = new Map(pack.questions.filter(isPlainObject).map((q) => [q.number, q]));
+  return entry.outcomes.every((o) => {
+    const q = isPlainObject(o) ? byNumber.get(o.number) : undefined;
+    return q !== undefined && q.answer === o.answer && q.topic === o.topic;
+  });
+}
+
+/**
  * Snapshot of a stored `history` entry (history.js). `pack` is the stored `pack:<quiz_id>` or null.
+ * BUG-09: the pack is used for the topics only when it is the one the exam was taken on (`packFitsEntry`); otherwise the exam
+ * keeps its totals and has no topics, as when the pack is gone, instead of showing another exam's topic names.
  * An exam imported from a receipt has no outcomes; its topics come from what the receipt said.
  * @returns {ExamSnapshot | null}  null when the entry is unusable
  */
@@ -335,7 +358,7 @@ export function snapshotFromHistoryEntry(entry, pack) {
   if (!isPlainObject(entry) || !isPlainObject(entry.totals)) return null;
   const t = entry.totals;
   if (![t.correct, t.total, t.percent].every(Number.isFinite) || typeof entry.quiz_id !== 'string') return null;
-  const stats = pack && Array.isArray(entry.outcomes) ? topicStats(pack, entry.outcomes) : [];
+  const stats = packFitsEntry(entry, pack) ? topicStats(pack, entry.outcomes) : [];
   return {
     id: String(entry.id ?? `${entry.quiz_id}@${entry.started_at ?? ''}`),
     quiz_id: entry.quiz_id,

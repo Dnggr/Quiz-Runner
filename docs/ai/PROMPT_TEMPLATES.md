@@ -228,7 +228,7 @@ Rules for the builder:
 - Ask for at most 1000 questions (`MAX_PACK_QUESTIONS`, the same limit the loader uses: a `total_questions` above it is treated as unknown, so such a pack could never report missing questions). A larger count, or per-topic counts that add up to more, is an error and no prompt is built.
 - Show an approximate prompt length (characters ÷ 4).
 - Keep wording generic about AI products (don't promise features such as file creation; the delivery block already has a fallback).
-- Quiz ids are unique per exam; the builder increments `NN` using local history.
+- Quiz ids are unique per exam; the builder increments `NN` using local history: `NN` is one more than the larger of the highest `NN` already used in a stored quiz id of the same subject slug (any mode) and the number of stored exams of that slug. Different subjects can share a slug (e.g. "C++" and "C#" are both `c`), so they share one counter.
 
 ## Changelog
 - v1 — initial templates.
@@ -236,3 +236,4 @@ Rules for the builder:
 - v1 (P7-02, P7-03) — documented how the app fills the Repair and Continue prompts, and added the "missing numbers" variant of the Continue prompt. The Repair and Continue wording and the Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.
 - v1 (BUG-02) — the Prompt Builder asks for at most 1000 questions (Builder options). The block wording and the Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.
 - v1 (BUG-06) — the parts delivery block says "1 part" instead of "1 parts" when the part size is not smaller than the count (new `{{parts_word}}` placeholder). The Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.
+- v1 (BUG-10, BUG-16) — the builder numbers quiz ids per subject slug and above the highest `NN` already stored, so an id is not reused after an exam is deleted or by another subject with the same slug (Builder rules). The block wording and the Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.
