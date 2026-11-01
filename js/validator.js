@@ -11,6 +11,7 @@
 //                             · the same topic id twice in `meta.topics` (BUG-12) · a `type` that is not mc / tf (BUG-15)
 //                             · `quiz_type`, `difficulty` or `skill` outside the listed values (BUG-20)
 //                             · `total_questions`, `part`, `total_parts` or `quiz_number` that is not a whole number (BUG-17)
+//                             · `meta.title`, `subject`, `quiz_type` or `total_questions` missing or blank (BUG-31)
 //
 // BUG-18: a wrong SHAPE (options as a list, a number as a topic id) is still an error, but the message names the real
 // problem instead of "no options" / "missing topic". Same blocking rules as before; only the wording and two new codes.
@@ -19,6 +20,7 @@
 // can group problems by question: see `groupIssues`. Thresholds come from constants.js.
 import {
   ANSWER_SKEW_MAX_SHARE, EXPECTED_OPTION_COUNT, SPEC_VERSION, QUIZ_TYPES, QUESTION_TYPES, DIFFICULTIES, SKILLS, ISSUE_EXAMPLE_NUMBERS,
+  META_FIELDS_WARNED_IF_MISSING,
 } from './constants.js';
 
 /**
@@ -185,6 +187,20 @@ export function validatePack(pack) {
   // BUG-20: fixed-value fields. A value outside the list is kept as written and only reported.
   if (hasText(meta.quiz_type) && !QUIZ_TYPES.includes(meta.quiz_type)) {
     warn('quiz_type_unknown', `meta.quiz_type is ${JSON.stringify(shortText(meta.quiz_type))}; it should be one of ${QUIZ_TYPES.join(', ')}. The pack still loads, and the value is kept as written.`);
+  }
+  // BUG-31: the other required `meta` fields (QUIZ_PACK_SPEC §3.1). None of them keys anything that is stored, so the pack still
+  // loads; each one that is missing or blank gets a warning that says what the app does without it. A `total_questions` that is
+  // present but unusable already has its own warning below (BUG-17), so it is not reported twice.
+  const metaGap = {
+    title: 'The exam will be shown as \"Untitled Quiz Pack\".',
+    subject: 'The exam has no subject, so its score is only compared with other exams that also have none.',
+    quiz_type: 'The exam type is unknown.',
+    total_questions: 'The number of questions the pack should have is unknown, so missing questions cannot be detected.',
+  };
+  for (const field of META_FIELDS_WARNED_IF_MISSING) {
+    const v = meta[field];
+    const absent = field === 'total_questions' ? (v === undefined || v === null || v === '') : !hasText(v);
+    if (absent) warn('meta_field_missing', `meta.${field} is missing${field === 'total_questions' ? '' : ' or blank'}. ${metaGap[field]}`);
   }
   for (const [field, allowed, effect] of [
     ['difficulty', DIFFICULTIES, 'They count as "no difficulty given".'],

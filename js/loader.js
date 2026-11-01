@@ -377,6 +377,22 @@ export function normalizePack(pack) {
   return out;
 }
 
+/**
+ * BUG-27: check a pack that was read back from storage (a saved exam in progress, a pack in a backup). Such a pack was saved
+ * under older rules. One that passes `validatePack` as it is comes back untouched. One that does not gets a second chance
+ * after `normalizePack`, the way a freshly loaded pack does (numbers written as text, numeric option text, `type` spellings,
+ * letter case). Nothing is invented: a pack that is still invalid after that (a blank option, a missing `number`, a missing
+ * `meta.quiz_id`) is refused, as it would be if it were pasted today. `AGENTS.md`: validation is not weakened for old data.
+ * @param {any} pack  a value read from storage
+ * @returns {{ ok: true, pack: object } | { ok: false }}  `pack` is the input itself, or a normalized copy of it; the input is never modified
+ */
+export function readStoredPack(pack) {
+  if (!isPlainObject(pack) || !Array.isArray(pack.questions)) return { ok: false };
+  if (validatePack(pack).errors.length === 0) return { ok: true, pack };
+  const normalized = normalizePack(pack);
+  return validatePack(normalized).errors.length === 0 ? { ok: true, pack: normalized } : { ok: false };
+}
+
 // ===========================================================================
 // Truncation salvage (P7-01)
 // ===========================================================================

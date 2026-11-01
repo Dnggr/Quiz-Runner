@@ -11,7 +11,7 @@
 import { BACKUP_FORMAT, BACKUP_VERSION, APP_VERSION, SPEC_VERSION, STORAGE_KEYS, PACK_KEY_PREFIX, packKey } from './constants.js';
 import { readHistory, entryId, findDuplicate } from './history.js';
 import { snapshotFromHistoryEntry } from './analytics.js';
-import { validatePack } from './validator.js';
+import { readStoredPack } from './loader.js';
 import { toOffsetIso, isMarkdownReceipt } from './receipt.js';
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -95,7 +95,8 @@ export function parseBackup(raw) {
   }
   const packs = {};
   for (const [quizId, pack] of Object.entries(isPlainObject(file.data.packs) ? file.data.packs : {})) {
-    if (quizId.trim() !== '' && validatePack(pack).errors.length === 0) packs[quizId] = pack;
+    const stored = quizId.trim() !== '' ? readStoredPack(pack) : { ok: false };   // BUG-27: normalized like a freshly loaded pack
+    if (stored.ok) packs[quizId] = stored.pack;
     else out.counts.skippedPacks++;
   }
   const settings = isPlainObject(file.data.settings) ? file.data.settings : null;

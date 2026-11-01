@@ -5,7 +5,7 @@
 // current question index and a `finished` flag. See docs/PLAN.md §7.
 import { SESSION_SCHEMA_VERSION, STORAGE_KEYS } from './constants.js';
 import { toExamQuestions, createResponses, progressCounts } from './exam.js';
-import { validatePack } from './validator.js';
+import { readStoredPack } from './loader.js';
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const nowIso = (now) => (now instanceof Date ? now : new Date()).toISOString();
@@ -47,10 +47,11 @@ export function buildSession(pack, now) {
 export function parseSession(raw) {
   try {
     if (!isPlainObject(raw) || raw.version !== SESSION_SCHEMA_VERSION) return null;
-    if (!isPlainObject(raw.pack) || !Array.isArray(raw.pack.questions)) return null;
-    if (validatePack(raw.pack).errors.length > 0) return null;
+    const stored = readStoredPack(raw.pack);   // BUG-27: a pack saved under older rules is normalized before it is checked
+    if (!stored.ok) return null;
+    const pack = stored.pack;
 
-    const questions = toExamQuestions(raw.pack);
+    const questions = toExamQuestions(pack);
     if (questions.length === 0) return null;
 
     const saved = isPlainObject(raw.responses) ? raw.responses : {};
@@ -64,12 +65,12 @@ export function parseSession(raw) {
 
     const lastIndex = questions.length - 1;
     const index = Number.isInteger(raw.index) ? Math.min(Math.max(raw.index, 0), lastIndex) : 0;
-    const meta = isPlainObject(raw.pack.meta) ? raw.pack.meta : {};
+    const meta = isPlainObject(pack.meta) ? pack.meta : {};
     return {
       version: SESSION_SCHEMA_VERSION,
       quiz_id: String(meta.quiz_id ?? ''),
       title: String(meta.title ?? ''),
-      pack: raw.pack,
+      pack,
       responses,
       index,
       finished: raw.finished === true,

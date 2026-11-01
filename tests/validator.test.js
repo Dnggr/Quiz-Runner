@@ -118,7 +118,8 @@ test('missing meta entirely: only the topic errors and the missing quiz_id (BUG-
   const { errors, warnings } = run(p);
   assert.ok(errors.every((e) => e.code === 'unknown_topic' || e.code === 'missing_quiz_id'));
   assert.equal(errors.filter((e) => e.code === 'missing_quiz_id').length, 1);
-  assert.deepEqual(warnings, []);
+  // BUG-31: the four other required fields are reported as warnings, nothing else
+  assert.deepEqual(warnings.map((w) => w.code), ['meta_field_missing', 'meta_field_missing', 'meta_field_missing', 'meta_field_missing']);
 });
 
 // ---------------------------------------------------------------- warnings

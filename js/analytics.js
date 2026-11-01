@@ -219,6 +219,9 @@ const mixFor = (key) => ({ ...DIFFICULTY_MIX_BY_GROUP[key] });
  *  4. Weak: split by misses, at least 2 per topic. Other groups: even split, at least 1 per topic.
  *     BUG-07: when the weak share cannot hold 2 each, it gives 1 each; when it cannot hold even that, the share grows (taking
  *     from strong first, then watch + developing) so that no weak topic has zero questions. N is never exceeded.
+ *     BUG-26: the same holds for the other groups when N is at least the number of topics: every topic gets 1, the lifted
+ *     group taking from strong, then watch + developing, and the weak share last. When N is smaller than the number of
+ *     topics, strong topics lose their questions first, then the least urgent watch + developing topics.
  *  5. Largest-remainder rounding, so the total is exactly N.
  *  6. Difficulty mix per group from constants.js.
  * SPEC GAP: `insufficient` topics belong to no group, so they get questions only when no topic has any other status
@@ -256,19 +259,34 @@ export function allocateNextExam(stats, n = NEXT_EXAM_DEFAULT_N) {
 
   const quotas = largestRemainder(total, present.map((k) => share[k]));
 
-  // BUG-07: every weak topic gets at least ALLOCATION_FLOOR_PER_WEAK_TOPIC questions. If its share is smaller than that,
-  // the missing questions come from the other groups, strong first, then watch + developing (the lowest priority first).
-  const weakAt = present.indexOf('weak');
-  if (weakAt !== -1) {
-    let need = Math.min(total, groups.weak.length * ALLOCATION_FLOOR_PER_WEAK_TOPIC) - quotas[weakAt];
-    for (const key of [...GROUP_ORDER].reverse()) {
-      const at = present.indexOf(key);
-      if (need <= 0 || at === -1 || key === 'weak') continue;
-      const taken = Math.min(need, quotas[at]);
-      quotas[at] -= taken;
-      quotas[weakAt] += taken;
+  // BUG-07 / BUG-26: coverage. Every topic that is in a group gets at least one question whenever N is large enough for that.
+  // A group whose share is below its number of topics is lifted to one per topic, and the questions come from the group of
+  // lowest priority that has some above its own floor (strong, then watch + developing, and the weak share last).
+  // When N is smaller than the number of topics nobody can cover everyone, so priority decides and the shares stand:
+  // weak topics are always covered (taking from strong, then watch + developing), then watch + developing (taking from
+  // strong), and strong topics are the first to go without a question.
+  const floors = present.map((key) => groups[key].length * (key === 'weak' ? ALLOCATION_FLOOR_PER_WEAK_TOPIC : ALLOCATION_MIN_PER_OTHER_TOPIC));
+  const lowestPriorityFirst = [...GROUP_ORDER].reverse().map((key) => present.indexOf(key)).filter((j) => j !== -1);
+  const lift = (at, target, donors, keep) => {
+    let need = Math.min(total, target) - quotas[at];
+    for (const j of donors) {
+      if (need <= 0) break;
+      if (j === at) continue;
+      const taken = Math.min(need, Math.max(0, quotas[j] - keep[j]));
+      quotas[j] -= taken;
+      quotas[at] += taken;
       need -= taken;
     }
+  };
+  if (sum(floors) <= total) {
+    present.forEach((_, at) => lift(at, floors[at], lowestPriorityFirst, floors));
+  } else {
+    const none = present.map(() => 0);
+    const weakAt = present.indexOf('weak');
+    const middleAt = present.indexOf('middle');
+    const strongAt = present.indexOf('strong');
+    if (weakAt !== -1) lift(weakAt, floors[weakAt], [strongAt, middleAt].filter((j) => j !== -1), none);
+    if (middleAt !== -1 && strongAt !== -1) lift(middleAt, floors[middleAt], [strongAt], none);
   }
   const allocations = [];
   present.forEach((key, i) => {

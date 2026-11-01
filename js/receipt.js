@@ -93,6 +93,43 @@ export function toOffsetIso(value, offsetMinutes = 0) {
   return `${local}${offset < 0 ? '-' : '+'}${pad2(Math.floor(abs / 60))}:${pad2(abs % 60)}`;
 }
 
+// BUG-34: the date texts a receipt may carry (RECEIPT_SPEC §9). `Date.parse` also reads "12" as 2001-12-01, "March 5" as
+// 2001-03-05 and "2026-02-31T00:00:00Z" as 2026-03-03, so a hand-edited or broken value landed in the wrong year without a
+// word. Only ISO 8601 is read: `YYYY-MM-DD`, or `YYYY-MM-DD` + `T` (or a space) + `hh:mm`, optionally `:ss` and `.fraction`,
+// optionally followed by `Z` or an offset (`+08:00`, `+0800`, `+08`). A text without an offset counts as UTC, so the result
+// never depends on the time zone of the device that reads it. The calendar is checked (no 31 February, no 25:00).
+const ISO_DATE_TEXT = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}(?::?\d{2})?)?)?$/;
+
+/**
+ * The time of an ISO 8601 date text as milliseconds since 1970 (UTC), or NaN when `value` is not text, is not ISO 8601, or
+ * names a day or time that does not exist. Pure; reads nothing from the device. Range limits (1970 to 9999, not in the
+ * future) are the caller's business (`history.js`).
+ * @param {unknown} value
+ * @returns {number}
+ */
+export function parseIsoDateMs(value) {
+  if (typeof value !== 'string') return NaN;
+  const m = ISO_DATE_TEXT.exec(value.trim());
+  if (!m) return NaN;
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const [hour, minute, second] = [Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0)];
+  const millis = m[7] ? Number(m[7].slice(0, 3).padEnd(3, '0')) : 0;
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return NaN;
+  // `Date.UTC` would read years 0-99 as 1900-1999, so the year is set separately; the round trip catches 31 February.
+  const d = new Date(0);
+  d.setUTCFullYear(year, month - 1, day);
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return NaN;
+  d.setUTCHours(hour, minute, second, millis);
+  let offsetMin = 0;
+  if (m[8] && m[8] !== 'Z') {
+    const digits = m[8].slice(1).replace(':', '');
+    const [oh, om] = [Number(digits.slice(0, 2)), Number(digits.slice(2, 4) || 0)];
+    if (oh > 23 || om > 59) return NaN;
+    offsetMin = (m[8][0] === '-' ? -1 : 1) * (oh * 60 + om);
+  }
+  return d.getTime() - offsetMin * 60000;
+}
+
 /** `qr-<quiz_id>-<YYYYMMDDHHmm>` from the local creation time. (Pattern read from RECEIPT_SPEC §8 and the sample receipt.) */
 export const receiptIdFor = (quizId, createdAtLocal) => `qr-${quizId}-${createdAtLocal.slice(0, 16).replace(/\D/g, '')}`;
 

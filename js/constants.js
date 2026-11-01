@@ -18,6 +18,18 @@ export const PROMPT_SETTINGS_VERSION = 1;                      // shape of that 
 export const PACK_KEY_PREFIX = 'pack:';
 export const packKey = (quizId) => PACK_KEY_PREFIX + quizId;
 export const HISTORY_SCHEMA_VERSION = 2;   // shape of one `history` entry (P3-09); bump if it changes. 2 (BUG-09): entries carry `topics: [{ id, name }]`; version-1 entries are still read
+
+// ---- Receipt import limits (RECEIPT_SPEC §9) -------------------------------
+// A date in a receipt is used only inside these limits (BUG-29). The lower one is the start of the Unix epoch: no exam is older.
+// The upper one is a day before the end of year 9999, so that even with a time-zone offset of up to 14 hours the date still has
+// a normal 4-digit year when it is shown (`toOffsetIso`).
+export const RECEIPT_DATE_MIN_MS = Date.UTC(1970, 0, 1);
+export const RECEIPT_DATE_MAX_MS = Date.UTC(9999, 11, 30, 23, 59, 59, 999);
+// BUG-32: a receipt dated later than the moment of import plus this much is not trusted as the exam date. A day is slack for a
+// device whose clock or time zone is a little ahead; more than that is a wrong clock or a hand-edited date.
+export const RECEIPT_FUTURE_SLACK_MS = 24 * 60 * 60 * 1000;
+// The last moment that `toISOString()` writes as a plain 4-digit year; used for start + duration (BUG-24).
+export const ISO_YEAR_9999_END_MS = Date.UTC(9999, 11, 31, 23, 59, 59, 999);
 export const SESSION_SCHEMA_VERSION = 1;   // shape of the `session` record (P3-03); bump if it changes
 
 // ---- Backup file (P6-09) --------------------------------------------------
@@ -79,6 +91,9 @@ export const TRUE_FALSE_VALUES = Object.freeze(['True', 'False']);   // `selecte
 export const DIFFICULTIES = Object.freeze(['easy', 'moderate', 'challenging']);   // QUIZ_PACK_SPEC §3.2
 export const QUIZ_TYPES = Object.freeze(['initial', 'targeted', 'retention', 'custom']);   // QUIZ_PACK_SPEC §3.1 `quiz_type` (BUG-20)
 export const QUESTION_TYPES = Object.freeze(['mc', 'tf']);                                // QUIZ_PACK_SPEC §3.2 `type` (BUG-15)
+// BUG-31: QUIZ_PACK_SPEC §3.1 "required" fields of `meta` besides `quiz_id` (which is an error, BUG-23) and `topics` (checked through the questions).
+// A pack without one still loads, with one warning per missing field.
+export const META_FIELDS_WARNED_IF_MISSING = Object.freeze(['title', 'subject', 'quiz_type', 'total_questions']);
 export const ISSUE_EXAMPLE_NUMBERS = 5;   // pack-level warnings that name questions list this many question numbers, then "…"
 
 // ---- Resilience (DEV_CHECKLIST P7-01..P7-04) -----------------------------

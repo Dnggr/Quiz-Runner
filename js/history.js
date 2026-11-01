@@ -5,13 +5,15 @@
 // replaces it instead of adding a duplicate. Retaking a quiz adds a new entry.
 // Phase 6 adds the other things that write to `history`: importing a receipt (P6-08), deleting one exam (P6-10) and
 // clearing everything (P6-10), and it builds the cumulative profile receipt (P6-07) that feeds the retention check (P6-11).
-import { STORAGE_KEYS, HISTORY_SCHEMA_VERSION, APP_VERSION, SPEC_VERSION, STATUS_ORDER, packKey } from './constants.js';
+import {
+  STORAGE_KEYS, HISTORY_SCHEMA_VERSION, APP_VERSION, SPEC_VERSION, STATUS_ORDER, packKey,
+  RECEIPT_DATE_MIN_MS, RECEIPT_DATE_MAX_MS, RECEIPT_FUTURE_SLACK_MS, ISO_YEAR_9999_END_MS, MAX_PACK_QUESTIONS,
+} from './constants.js';
 import { snapshotFromHistoryEntry, packFitsEntry, packTopics, storedTopics, normalizeName } from './analytics.js';
 import { ratingForPercent } from './grader.js';
-import { buildReceipt, coveredConcepts } from './receipt.js';
+import { buildReceipt, coveredConcepts, parseIsoDateMs } from './receipt.js';
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-const MAX_ISO_MS = Date.UTC(9999, 11, 31, 23, 59, 59, 999);   // BUG-24: the last moment that `toISOString()` writes as a plain 4-digit year
 const MAX_STORED_TOPICS = 200;   // a pack lists 6-15 topics (QUIZ_PACK_SPEC rule 7); this only stops a bogus pack from filling storage
 
 /**
@@ -270,21 +272,41 @@ export function prepareProfileReceipt(store, { now = new Date(), tzOffsetMinutes
 // ============================================================================================================
 
 const secondOf = (iso) => { const ms = Date.parse(iso); return Number.isFinite(ms) ? Math.floor(ms / 1000) : null; };
+/** The same for a date that came from a receipt (BUG-34): only a real ISO date counts. */
+const receiptSecond = (value) => { const ms = parseIsoDateMs(value); return Number.isFinite(ms) ? Math.floor(ms / 1000) : null; };
+
+/** BUG-35: what makes two entries "the same exam" when no date can say so: the quiz, its title and every count. */
+const sameExamDetails = (a, b) => {
+  const ta = isPlainObject(a.totals) ? a.totals : {};
+  const tb = isPlainObject(b.totals) ? b.totals : {};
+  return nonEmpty(a.quiz_id) && a.quiz_id === b.quiz_id
+    && normalizeName(a.title) === normalizeName(b.title)
+    && ['total', 'correct', 'wrong', 'skipped', 'unsure'].every((k) => Number.isInteger(ta[k]) && ta[k] === tb[k]);
+};
 
 /**
  * Is `candidate` already in `entries`? RECEIPT_SPEC §9: same `receipt_id`. Also the same entry id, and the same exam taken at
  * the same second: a receipt exported from this very device has an id nobody stored, and its time was written without
  * milliseconds, so it would otherwise count a second time. SPEC GAP: the spec names only `receipt_id`.
- * @returns {{ by: 'receipt_id' | 'id' | 'exam', entry: object } | null}
+ * BUG-35: a receipt with no `receipt_id` whose date could not be trusted (it was dated at the time of import, D46) has no
+ * date that can match, so a second import of it is recognised by the quiz, title and counts instead (D48). That check is
+ * opt-in (`dateIsGuessed`): a normal receipt keeps being matched by its date, so a retake with the same score is not skipped.
+ * @param {object[]} entries
+ * @param {object} candidate
+ * @param {{ dateIsGuessed?: boolean }} [options]
+ * @returns {{ by: 'receipt_id' | 'id' | 'exam' | 'details', entry: object } | null}
  */
-export function findDuplicate(entries, candidate) {
+export function findDuplicate(entries, candidate, { dateIsGuessed = false } = {}) {
   const second = secondOf(candidate.started_at);
+  const byDetails = dateIsGuessed && !nonEmpty(candidate.receipt_id);
+  let details = null;
   for (const e of entries) {
     if (nonEmpty(candidate.receipt_id) && e.receipt_id === candidate.receipt_id) return { by: 'receipt_id', entry: e };
     if (entryId(e) === candidate.id) return { by: 'id', entry: e };
     if (second !== null && e.quiz_id === candidate.quiz_id && secondOf(e.started_at) === second) return { by: 'exam', entry: e };
+    if (byDetails && details === null && sameExamDetails(e, candidate)) details = { by: 'details', entry: e };
   }
-  return null;
+  return details;   // the weaker match counts only when no stronger one was found in the whole list
 }
 
 const text = (v, max = 2000) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
@@ -320,10 +342,21 @@ function keptConcepts(map) {
 }
 
 /**
+ * BUG-29 / BUG-34: the time of a receipt date as milliseconds, or NaN when it is not a real ISO 8601 date (`parseIsoDateMs`:
+ * "12", "March 5" and 31 February are not) or is outside the limits that a real exam can have (`RECEIPT_DATE_MIN_MS` to
+ * `RECEIPT_DATE_MAX_MS`). Dates such as `0001-01-01…` are real but would be shown garbled.
+ */
+const receiptDateMs = (value) => {
+  const ms = parseIsoDateMs(value);
+  return Number.isFinite(ms) && ms >= RECEIPT_DATE_MIN_MS && ms <= RECEIPT_DATE_MAX_MS ? ms : NaN;
+};
+
+/**
  * Turn a parsed receipt (`parseReceipt`) into the history entry it stands for. The receipt has the totals and the topic
  * statuses but not the answers, so the entry has no `outcomes`: it counts in the list, the trend, the mastery and the history
  * table, and it cannot be opened for review.
- * @returns {{ ok: true, entry: HistoryEntry, warnings: string[], otherExams: number } | { ok: false, error: string }}
+ * @returns {{ ok: true, entry: HistoryEntry, warnings: string[], otherExams: number, dateIsGuessed: boolean } | { ok: false, error: string }}
+ *   `dateIsGuessed` = every date in the receipt was in the future, so the time of the import stands in for the exam date (D46)
  */
 export function receiptToEntry(parsed, { now = new Date() } = {}) {
   if (!parsed || !parsed.ok || !isPlainObject(parsed.data)) return { ok: false, error: (parsed && parsed.errors && parsed.errors[0]) || 'Choose a Quiz Runner receipt first.' };
@@ -334,12 +367,38 @@ export function receiptToEntry(parsed, { now = new Date() } = {}) {
 
   const total = count(exam.total);
   const nums = ['correct', 'wrong', 'skipped', 'unsure'].map((k) => count(result[k]));
-  if (total === null || total < 1 || nums.some((n) => n === null) || !Number.isFinite(result.percent)) {
-    return { ok: false, error: 'The receipt has no usable result (the score and the counts are missing or not numbers), so it cannot be added to your history.' };
+  // BUG-28: `percent` is not needed here: it is worked out from the counts below, and a given value is only compared with it.
+  if (total === null || total < 1 || nums.some((n) => n === null)) {
+    return { ok: false, error: 'The receipt has no usable result (the counts are missing or not numbers), so it cannot be added to your history.' };
   }
-  const startedMs = [exam.taken_at, d.created_at].map((v) => Date.parse(v)).find(Number.isFinite);
-  if (startedMs === undefined) return { ok: false, error: 'The receipt does not say when the exam was taken, so it cannot be placed in your history.' };
-  if (!Number.isFinite(Date.parse(exam.taken_at))) warnings.push('The receipt has no valid exam date; its creation time was used.');
+  // BUG-30: no real exam has more questions than the app handles (the loader and the Prompt Builder use the same limit, D14 / D23),
+  // so a receipt that claims more was edited. `total` is a whole number here, so printing it is safe.
+  if (total > MAX_PACK_QUESTIONS) {
+    return { ok: false, error: `The receipt says the exam had ${total} questions, but this app handles at most ${MAX_PACK_QUESTIONS}, so it was not imported. It may have been edited.` };
+  }
+  // BUG-29: a date outside the limits counts as no date; the creation time is used instead, if it is a usable date.
+  // BUG-32: a date later than now + a day is not trusted either (it would become the "latest" exam for good). The creation time is
+  // tried next; when every date is in the future (a device with a wrong clock makes both), the time of the import is used.
+  const takenMs = receiptDateMs(exam.taken_at);
+  const createdMs = receiptDateMs(d.created_at);
+  const nowMs = now.getTime();
+  const latestMs = Number.isFinite(nowMs) ? nowMs + RECEIPT_FUTURE_SLACK_MS : RECEIPT_DATE_MAX_MS;
+  const isPast = (ms) => Number.isFinite(ms) && ms <= latestMs;
+  const isFuture = (ms) => Number.isFinite(ms) && ms > latestMs;
+  let startedMs = [takenMs, createdMs].find(isPast);
+  let dateIsGuessed = false;
+  if (startedMs === undefined) {
+    if (![takenMs, createdMs].some(isFuture) || !Number.isFinite(nowMs)) {
+      return { ok: false, error: 'The receipt does not give a usable date for when the exam was taken (it is missing, or not a real date in the form 2026-10-25T14:10:00+08:00), so it cannot be placed in your history.' };
+    }
+    startedMs = nowMs;
+    dateIsGuessed = true;
+    warnings.push('The receipt is dated in the future (the clock of the device that made it may be wrong), so the time it was imported was used as the exam date.');
+  } else if (isFuture(takenMs)) {
+    warnings.push('The receipt\'s exam date is in the future (the clock of the device that made it may be wrong); its creation time was used.');
+  } else if (!Number.isFinite(takenMs)) {
+    warnings.push('The receipt has no valid exam date; its creation time was used.');
+  }
 
   const [correct, wrong, skipped, unsure] = nums;
   if (correct + wrong + skipped !== total) {
@@ -354,7 +413,7 @@ export function receiptToEntry(parsed, { now = new Date() } = {}) {
   // hand-rounded "72" through quietly.
   const percent = Math.round((1000 * correct) / total) / 10;
   const rating = ratingForPercent(percent);
-  if (Math.abs(result.percent - percent) > 0.5) {
+  if (Number.isFinite(result.percent) && Math.abs(result.percent - percent) > 0.5) {
     warnings.push(`The receipt says ${text(String(result.percent), 20)}%, but its counts (${correct} of ${total}) give ${percent}%. The counts were used.`);
   } else if (nonEmpty(result.rating) && text(result.rating, 50).toLowerCase() !== rating.toLowerCase()) {
     warnings.push(`The receipt says the rating is “${text(result.rating, 50)}”, but ${percent}% is “${rating}”. The rating was worked out from the counts.`);
@@ -363,7 +422,7 @@ export function receiptToEntry(parsed, { now = new Date() } = {}) {
   // BUG-24: `started + duration` must be a date that can be written as a normal ISO text (year 9999 at most). A huge duration
   // (1e300, 8.64e12) used to make `toISOString()` throw and crash the import; now it is treated as absent, with a warning.
   const finishedMs = Number.isFinite(exam.duration_sec) && exam.duration_sec >= 0 ? startedMs + exam.duration_sec * 1000 : null;
-  const finishedAt = finishedMs !== null && Number.isFinite(finishedMs) && finishedMs <= MAX_ISO_MS ? new Date(finishedMs).toISOString() : '';
+  const finishedAt = finishedMs !== null && Number.isFinite(finishedMs) && finishedMs <= ISO_YEAR_9999_END_MS ? new Date(finishedMs).toISOString() : '';
   if (finishedMs !== null && finishedAt === '') {
     warnings.push('The receipt\'s exam duration is too large to be real, so it was ignored.');
   }
@@ -395,8 +454,8 @@ export function receiptToEntry(parsed, { now = new Date() } = {}) {
 
   // A profile receipt lists the other exams too, but only as a date and a percentage: nothing a history entry can be built from.
   const second = secondOf(startedAt);
-  const otherExams = (Array.isArray(d.history) ? d.history : []).filter((h) => isPlainObject(h) && !(h.quiz_id === quizId && secondOf(h.taken_at) === second)).length;
-  return { ok: true, entry, warnings, otherExams };
+  const otherExams = (Array.isArray(d.history) ? d.history : []).filter((h) => isPlainObject(h) && !(h.quiz_id === quizId && receiptSecond(h.taken_at) === second)).length;
+  return { ok: true, entry, warnings, otherExams, dateIsGuessed };
 }
 
 /**
@@ -414,9 +473,9 @@ export function importReceipt(store, parsed, { now = new Date() } = {}) {
   const { entries, corrupt } = readHistory(store);
   if (corrupt) return { ok: false, error: 'Your saved history could not be read, so nothing was imported. It has not been changed.' };
 
-  const { entry, warnings, otherExams } = made;
+  const { entry, warnings, otherExams, dateIsGuessed } = made;
   const label = `“${entry.title || entry.quiz_id}”`;
-  const duplicate = findDuplicate(entries, entry);
+  const duplicate = findDuplicate(entries, entry, { dateIsGuessed });
   if (duplicate) {
     const why = duplicate.by === 'receipt_id' ? 'this receipt was already imported' : 'that exam is already in your history';
     return { ok: true, status: 'duplicate', saved: true, message: `Skipped ${label}: ${why}.`, warnings, entry };
