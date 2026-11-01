@@ -59,6 +59,14 @@ test('P8-03 the page is drawn edge to edge and padded by all four safe-area inse
   assert.match(phone, /\.wrap\{[^}]*--safe-left[^}]*--safe-right/, 'the small-phone padding keeps the side insets');
 });
 
+test('BUG-25 the viewport tag does not block pinch-zoom (WCAG 1.4.4): no maximum-scale and no user-scalable=no', () => {
+  const tag = html.match(/<meta name="viewport"[^>]*>/);
+  assert.ok(tag, 'the viewport tag exists');
+  assert.doesNotMatch(tag[0], /maximum-scale|user-scalable/i);
+  assert.match(tag[0], /width=device-width/);
+  assert.match(tag[0], /initial-scale=1/);
+});
+
 // ---- P8-01: roles, labels, focus, never colour alone ------------------------------------------------------------------------
 test('P8-01 both exam screens draw each option as a <button role="radio"> with aria-checked, inside a named radiogroup', () => {
   for (const file of ['js/ui/exam.js', 'js/ui/quickpaste.js']) {

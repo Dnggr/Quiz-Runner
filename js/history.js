@@ -11,6 +11,7 @@ import { ratingForPercent } from './grader.js';
 import { buildReceipt, coveredConcepts } from './receipt.js';
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const MAX_ISO_MS = Date.UTC(9999, 11, 31, 23, 59, 59, 999);   // BUG-24: the last moment that `toISOString()` writes as a plain 4-digit year
 const MAX_STORED_TOPICS = 200;   // a pack lists 6-15 topics (QUIZ_PACK_SPEC rule 7); this only stops a bogus pack from filling storage
 
 /**
@@ -359,7 +360,13 @@ export function receiptToEntry(parsed, { now = new Date() } = {}) {
     warnings.push(`The receipt says the rating is “${text(result.rating, 50)}”, but ${percent}% is “${rating}”. The rating was worked out from the counts.`);
   }
   const startedAt = new Date(startedMs).toISOString();
-  const durationSec = Number.isFinite(exam.duration_sec) && exam.duration_sec >= 0 ? exam.duration_sec : null;
+  // BUG-24: `started + duration` must be a date that can be written as a normal ISO text (year 9999 at most). A huge duration
+  // (1e300, 8.64e12) used to make `toISOString()` throw and crash the import; now it is treated as absent, with a warning.
+  const finishedMs = Number.isFinite(exam.duration_sec) && exam.duration_sec >= 0 ? startedMs + exam.duration_sec * 1000 : null;
+  const finishedAt = finishedMs !== null && Number.isFinite(finishedMs) && finishedMs <= MAX_ISO_MS ? new Date(finishedMs).toISOString() : '';
+  if (finishedMs !== null && finishedAt === '') {
+    warnings.push('The receipt\'s exam duration is too large to be real, so it was ignored.');
+  }
   const quizId = text(exam.quiz_id, 200);
   const entry = {
     entry_version: HISTORY_SCHEMA_VERSION,
@@ -370,7 +377,7 @@ export function receiptToEntry(parsed, { now = new Date() } = {}) {
     quiz_type: text(exam.quiz_type, 50),
     quiz_number: Number.isInteger(exam.quiz_number) ? exam.quiz_number : null,
     started_at: startedAt,
-    finished_at: durationSec === null ? '' : new Date(startedMs + durationSec * 1000).toISOString(),
+    finished_at: finishedAt,
     spec_version: Number.isFinite(d.version) ? d.version : SPEC_VERSION,
     app_version: text(d.app_version, 50),
     totals: {

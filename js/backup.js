@@ -12,7 +12,7 @@ import { BACKUP_FORMAT, BACKUP_VERSION, APP_VERSION, SPEC_VERSION, STORAGE_KEYS,
 import { readHistory, entryId, findDuplicate } from './history.js';
 import { snapshotFromHistoryEntry } from './analytics.js';
 import { validatePack } from './validator.js';
-import { toOffsetIso, RECEIPT_BEGIN } from './receipt.js';
+import { toOffsetIso, isMarkdownReceipt } from './receipt.js';
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -69,7 +69,7 @@ export function parseBackup(raw) {
   const text = String(raw ?? '').replace(/^\uFEFF/, '').trim();
   if (text === '') { out.errors.push('The file is empty.'); return out; }
 
-  if (text.includes(RECEIPT_BEGIN)) {
+  if (isMarkdownReceipt(text)) {   // BUG-22: a backup is JSON; the marker inside its packs' text is not a receipt
     out.errors.push('This is a receipt, not a backup. Use “Import receipt” to add it to your history.');
     return out;
   }

@@ -214,12 +214,14 @@ Optional blocks: `missed`, `history`, `cumulative`, `covered_concepts` are prese
 
 ## 9. Import rules
 
-- Accept `.json`, or `.md` (extract the JSON block between the markers).
+- Accept `.json`, or `.md` (extract the JSON block between the markers). A text that starts with `{` is read as JSON, whatever it contains: the markers are looked for only in other text, so a question or explanation that holds `<!-- BEGIN RECEIPT -->` does not turn a `.json` receipt (or a backup) into a "Markdown receipt" (BUG-22). Text before the begin marker is still allowed.
 - Skip if `receipt_id` already exists in history.
 - The counts are the facts (BUG-19): `correct + wrong + skipped` must equal `exam.total` and `unsure` must not be more than `exam.total`, otherwise the receipt is refused ("may have been edited"). `percent` and `rating` are **recomputed from the counts** by the rules of §2 and the imported values are ignored; if the receipt's `percent` is more than 0.5 off, or its `rating` text differs, the import goes ahead with a warning.
+- `exam.duration_sec` is used for the finish time only when start + duration is a date up to the end of year 9999; a larger value is ignored with a warning, and the rest of the receipt is imported (BUG-24).
 - If the pack for `exam.quiz_id` is not stored locally, keep the receipt's data (stats, missed questions) but disable "Open exam review".
 - Unknown `version`: warn and try best-effort import.
 
 ## 10. Changelog
 - v1 — initial format.
 - v1 (BUG-07, BUG-11, BUG-19) — §6 says which rule wins when the weak share cannot hold 2 questions per weak topic; §2 says the rating uses the rounded percentage; §9 lists the import checks (`unsure` within the total) and says `percent` and `rating` are recomputed. The receipt format itself is unchanged, so `SPEC_VERSION` stays 1.
+- v1 (BUG-22, BUG-24) — §9 says that a text starting with `{` is JSON before any marker is looked for, and what happens to a duration that gives no valid date. The receipt format itself is unchanged, so `SPEC_VERSION` stays 1.

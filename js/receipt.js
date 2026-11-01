@@ -440,6 +440,16 @@ export function findEmbeddedJson(markdown) {
 }
 
 /**
+ * BUG-22: is this text the Markdown form of a receipt? The marker only counts when the text is not bare JSON: a text that
+ * starts with `{` is JSON, and a question or explanation inside it may contain the marker as plain text (the Markdown
+ * export escapes `<` in its data block, the `.json` export does not). Text before the marker is still tolerated, as before.
+ * Pure string check; shared by `parseReceipt` and `parseBackup` so both decide the same way.
+ * @param {string} text  already trimmed, without a BOM
+ * @returns {boolean}
+ */
+export const isMarkdownReceipt = (text) => !String(text).startsWith('{') && String(text).includes(RECEIPT_BEGIN);
+
+/**
  * Parse and check a pasted receipt: the Markdown form (between the BEGIN / END markers) or the bare JSON form.
  * Errors block use; warnings do not (an unknown `version` is a warning: "warn and try best-effort import").
  * What it requires is what a next-quiz prompt needs: the format tag, the exam id, and the topic list with ids and names.
@@ -455,8 +465,8 @@ export function parseReceipt(text) {
   }
 
   let jsonText = null;
-  const begin = raw.indexOf(RECEIPT_BEGIN);
-  if (begin !== -1) {
+  if (isMarkdownReceipt(raw)) {   // BUG-22: bare JSON is decided first, so a marker inside its text cannot turn it into "Markdown"
+    const begin = raw.indexOf(RECEIPT_BEGIN);
     const end = raw.lastIndexOf(RECEIPT_END);
     if (end < begin) {
       out.errors.push(`The receipt is cut off: the end marker (${RECEIPT_END}) is missing. Copy the whole receipt.`);

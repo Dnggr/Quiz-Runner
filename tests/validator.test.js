@@ -112,11 +112,12 @@ test('a question without a `number` is labelled by its position, is a bad_number
   assert.match(errors[2].message, /position 2/);
 });
 
-test('missing meta entirely: only the topic errors, no crash', () => {
+test('missing meta entirely: only the topic errors and the missing quiz_id (BUG-23), no crash', () => {
   const p = basePack();
   delete p.meta;
   const { errors, warnings } = run(p);
-  assert.ok(errors.every((e) => e.code === 'unknown_topic'));
+  assert.ok(errors.every((e) => e.code === 'unknown_topic' || e.code === 'missing_quiz_id'));
+  assert.equal(errors.filter((e) => e.code === 'missing_quiz_id').length, 1);
   assert.deepEqual(warnings, []);
 });
 

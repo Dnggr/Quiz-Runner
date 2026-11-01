@@ -5,6 +5,7 @@
 //                             · answer not in options · duplicate `number` · topic id not in `meta.topics`
 //                             · `number` missing or not a whole number from 1 up (BUG-08)
 //                             · an option that is empty or not text (BUG-12)
+//                             · `meta.quiz_id` missing, blank or not text (BUG-23)
 //   WARNINGS load anyway.     count ≠ `meta.total_questions` · missing `explanation` · any correct letter > 40%
 //                             · option count ≠ 4 · missing `concept` · `version` ≠ SPEC_VERSION (P2-08)
 //                             · the same topic id twice in `meta.topics` (BUG-12) · a `type` that is not mc / tf (BUG-15)
@@ -56,6 +57,14 @@ export function validatePack(pack) {
   }
 
   const meta = isPlainObject(pack.meta) ? pack.meta : {};
+
+  // BUG-23: `meta.quiz_id` is required (QUIZ_PACK_SPEC §3.1) and is the key of the saved pack (`pack:<quiz_id>`), of the history
+  // entry and of the receipt. Without it every such exam shares the key `pack:` and its receipt cannot be imported again.
+  if (!hasText(meta.quiz_id)) {
+    const why = meta.quiz_id === undefined || meta.quiz_id === null || typeof meta.quiz_id === 'string' ? 'it is missing or blank' : `it is ${kindOf(meta.quiz_id)}`;
+    error('missing_quiz_id', `meta.quiz_id must be text that names this exam, such as "networks-initial-01", but ${why}. Without it the exam's saved questions and its receipt cannot be kept apart from other exams.`);
+  }
+
   const topicEntries = Array.isArray(meta.topics) ? meta.topics : [];
   const usableTopics = topicEntries.filter((t) => isPlainObject(t) && hasText(t.id));
   const topicIds = new Set(usableTopics.map((t) => t.id));
