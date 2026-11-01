@@ -1,4 +1,5 @@
-// Tests for BUG-09 (stored pack must fit the exam), BUG-10 and BUG-16 (quiz id numbering) from the 2026-10-31 audit.
+// Tests for BUG-09 (stored pack must fit the exam), BUG-10 and BUG-16 (quiz id numbering), BUG-18 (load-error wording)
+// from the 2026-10-31 audit.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { nextQuizNumber, nextQuizId } from '../js/receipt.js';
@@ -7,7 +8,9 @@ import { packFitsEntry, snapshotFromHistoryEntry } from '../js/analytics.js';
 import { loadSnapshots, rebuildLatestReceipt, prepareProfileReceipt, readHistory } from '../js/history.js';
 import { openProblem, OPEN_PROBLEMS } from '../js/progress.js';
 import { packKey } from '../js/constants.js';
-import { newStore, packWith, takeExam, answers } from './helpers.js';
+import { newStore, packWith, takeExam, answers, basePack } from './helpers.js';
+import { validatePack } from '../js/validator.js';
+import { normalizePack } from '../js/loader.js';
 
 const topics = (...pairs) => pairs.map(([id, name]) => ({ id, name }));
 const nextId = (snaps, subject, mode = 'initial') => nextQuizId(subject, mode, nextQuizNumber(snaps, subject));
@@ -134,4 +137,82 @@ test('BUG-09 KNOWN LIMIT: a pack with only the topic names changed still fits th
   const renamed = packWith('shared-01', topics(['t1', 'Gamma'], ['t2', 'Delta']));
   take(store, renamed, '2026-10-02T10:00:00.000Z', [1, 2, 3, 4]);
   assert.deepEqual(loadSnapshots(store)[0].topics.map((t) => t.name), ['Gamma', 'Delta']);
+});
+
+// ---- BUG-18 ----------------------------------------------------------------------------------------------------------
+// A wrong SHAPE is still a blocking error, but the message must name the real problem (not "no options" / "missing topic").
+const checkPack = (p) => validatePack(normalizePack(p));
+
+test('BUG-18 "options" given as a list, text or a number says it must be an object, and still blocks loading', () => {
+  for (const [bad, kind] of [[['a', 'b', 'c', 'd'], 'a list'], ['A. x B. y', 'text'], [4, 'a number']]) {
+    const p = basePack();
+    p.questions[0].options = bad;
+    const { errors } = checkPack(p);
+    assert.equal(errors.length, 1);
+    assert.equal(errors[0].code, 'options_not_object');
+    assert.equal(errors[0].number, 1);
+    assert.match(errors[0].message, /"options" must be an object/);
+    assert.ok(errors[0].message.includes(kind), errors[0].message);
+    assert.doesNotMatch(errors[0].message, /has no options/);
+  }
+});
+
+test('BUG-18 options that are really absent (missing or null) keep the old "has no options" message', () => {
+  for (const mutate of [(q) => { delete q.options; q.type = 'mc'; }, (q) => { q.options = null; q.type = 'mc'; }]) {
+    const p = basePack();
+    mutate(p.questions[0]);
+    const { errors } = checkPack(p);
+    assert.deepEqual(errors.map((e) => e.code), ['answer_not_in_options']);
+    assert.match(errors[0].message, /has no options/);
+  }
+});
+
+test('BUG-18 a question `topic` that is not text says so, instead of "missing its topic"', () => {
+  for (const [bad, kind] of [[1, 'a number'], [true, 'true or false'], [['t1'], 'a list'], [{ id: 't1' }, 'an object']]) {
+    const p = basePack();
+    p.questions[0].topic = bad;
+    const { errors } = checkPack(p);
+    assert.deepEqual(errors.map((e) => e.code), ['topic_not_text']);
+    assert.ok(errors[0].message.includes(kind), errors[0].message);
+    assert.doesNotMatch(errors[0].message, /missing its/);
+  }
+});
+
+test('BUG-18 a really missing or empty `topic` keeps the "missing its topic" message', () => {
+  const p = basePack();
+  delete p.questions[0].topic;
+  p.questions[1].topic = '  ';
+  p.questions[2].topic = null;
+  const { errors } = checkPack(p);
+  assert.deepEqual(errors.map((e) => e.code), ['missing_topic', 'missing_topic', 'missing_topic']);
+});
+
+test('BUG-18 numeric ids in meta.topics: the unknown-topic message points at the ids, not at a missing list', () => {
+  const p = basePack();
+  p.meta.topics.forEach((t, i) => { t.id = i + 1; });
+  const { errors } = checkPack(p);
+  assert.equal(errors.length, 4);
+  assert.ok(errors.every((e) => e.code === 'unknown_topic'));
+  assert.match(errors[0].message, /none of the 2 entries in meta\.topics has an "id" written as text/);
+  assert.doesNotMatch(errors[0].message, /missing or empty/);
+  // only one of the entries is wrong: the hint counts it
+  const q = basePack();
+  q.meta.topics[1].id = 2;
+  const only = checkPack(q).errors;
+  assert.deepEqual(only.map((e) => e.number), [3, 4]);
+  assert.match(only[0].message, /1 of the 2 entries in meta\.topics have no "id" written as text/);
+});
+
+test('BUG-18 a missing meta.topics keeps its own hint', () => {
+  const p = basePack();
+  delete p.meta.topics;
+  assert.match(checkPack(p).errors[0].message, /meta\.topics is missing or empty/);
+});
+
+test('BUG-18 the message never repeats the pack text, only the kind of value', () => {
+  const p = basePack();
+  p.questions[0].options = ['<script>alert(1)</script>'];
+  p.questions[1].topic = { id: '<img src=x onerror=alert(1)>' };
+  const text = checkPack(p).errors.map((e) => e.message).join('\n');
+  assert.doesNotMatch(text, /script|onerror|alert/);
 });

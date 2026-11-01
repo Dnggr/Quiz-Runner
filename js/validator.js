@@ -6,6 +6,9 @@
 //   WARNINGS load anyway.     count ≠ `meta.total_questions` · missing `explanation` · any correct letter > 40%
 //                             · option count ≠ 4 · missing `concept` · `version` ≠ SPEC_VERSION (P2-08)
 //
+// BUG-18: a wrong SHAPE (options as a list, a number as a topic id) is still an error, but the message names the real
+// problem instead of "no options" / "missing topic". Same blocking rules as before; only the wording and two new codes.
+//
 // Every issue carries the question number (or null for pack-level issues) so the error screen (P2-06)
 // can group problems by question: see `groupIssues`. Thresholds come from constants.js.
 import { ANSWER_SKEW_MAX_SHARE, EXPECTED_OPTION_COUNT, SPEC_VERSION } from './constants.js';
@@ -46,11 +49,10 @@ export function validatePack(pack) {
   }
 
   const meta = isPlainObject(pack.meta) ? pack.meta : {};
-  const topicIds = new Set(
-    (Array.isArray(meta.topics) ? meta.topics : [])
-      .filter((t) => isPlainObject(t) && hasText(t.id))
-      .map((t) => t.id),
-  );
+  const topicEntries = Array.isArray(meta.topics) ? meta.topics : [];
+  const usableTopics = topicEntries.filter((t) => isPlainObject(t) && hasText(t.id));
+  const topicIds = new Set(usableTopics.map((t) => t.id));
+  const topicsWithoutTextId = topicEntries.length - usableTopics.length;
 
   // ---- per question --------------------------------------------------------
   const firstIndexOfNumber = new Map();   // number -> index of first use
@@ -66,7 +68,11 @@ export function validatePack(pack) {
     // required text fields
     if (!hasText(q.question)) error('missing_question', `${who} is missing its "question" text.`, q, index);
     if (!hasText(q.answer)) error('missing_answer', `${who} is missing its "answer".`, q, index);
-    if (!hasText(q.topic)) error('missing_topic', `${who} is missing its "topic".`, q, index);
+    if (q.topic !== undefined && q.topic !== null && typeof q.topic !== 'string') {
+      error('topic_not_text', `${who}: the "topic" must be the id text from meta.topics, such as "t1", but it is ${kindOf(q.topic)}.`, q, index);
+    } else if (!hasText(q.topic)) {
+      error('missing_topic', `${who} is missing its "topic".`, q, index);
+    }
 
     // answer must be one of the options
     if (hasText(q.answer)) {
@@ -76,7 +82,9 @@ export function validatePack(pack) {
         }
       } else {
         const letters = isPlainObject(q.options) ? Object.keys(q.options) : [];
-        if (letters.length === 0) {
+        if (q.options !== undefined && q.options !== null && !isPlainObject(q.options)) {
+          error('options_not_object', `${who}: "options" must be an object like { "A": "…", "B": "…" }, but it is ${kindOf(q.options)}, so the answer "${q.answer}" can't be checked.`, q, index);
+        } else if (letters.length === 0) {
           error('answer_not_in_options', `${who}: the answer "${q.answer}" can't be checked because the question has no options.`, q, index);
         } else if (!letters.includes(q.answer)) {
           error('answer_not_in_options', `${who}: the answer "${q.answer}" is not among the options (${letters.join(', ')}).`, q, index);
@@ -86,7 +94,14 @@ export function validatePack(pack) {
 
     // topic must exist in meta.topics
     if (hasText(q.topic) && !topicIds.has(q.topic)) {
-      const hint = topicIds.size === 0 ? ' (meta.topics is missing or empty)' : '';
+      let hint = '';
+      if (topicEntries.length === 0) hint = ' (meta.topics is missing or empty)';
+      else if (topicsWithoutTextId > 0) {
+        const who = topicsWithoutTextId === topicEntries.length
+          ? `none of the ${topicEntries.length} entries in meta.topics has an "id" written as text`
+          : `${topicsWithoutTextId} of the ${topicEntries.length} entries in meta.topics have no "id" written as text`;
+        hint = ` (${who}; ids must be text such as "t1")`;
+      }
       error('unknown_topic', `${who}: the topic "${q.topic}" is not listed in meta.topics${hint}.`, q, index);
     }
 
@@ -145,6 +160,15 @@ export function validatePack(pack) {
   }
 
   return { errors, warnings };
+}
+
+/** BUG-18: pack content is untrusted, so a wrong-shaped value is described by its kind only, never echoed. */
+function kindOf(v) {
+  if (Array.isArray(v)) return 'a list';
+  if (isPlainObject(v)) return 'an object';
+  if (typeof v === 'number') return 'a number';
+  if (typeof v === 'boolean') return 'true or false';
+  return 'text';
 }
 
 function numberOf(q) {

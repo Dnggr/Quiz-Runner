@@ -1,6 +1,6 @@
 # Quiz Runner v2 — Plan
 
-Status: planning (no code yet) · Date: 2026-10-25 · Spec version: 1
+Status: built — v2.0.0 code is in place; what is still open is tracked in `DEV_CHECKLIST.md` (Phase 8 and the bug flags) · Plan written: 2026-10-25 · Spec version: 1
 
 ---
 
