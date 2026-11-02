@@ -148,3 +148,21 @@ test('BUG-14 the <summary> toggles inside .warn-details are at least 48px tall',
   assert.ok(rule, 'a .warn-details summary rule exists');
   assert.match(rule.body, /min-height:\s*48px/);
 });
+
+// ---- BUG-04 (D50): the 48px tap-target rule for the question jump grid ------------------------------------------------------
+test('BUG-04 every jump-grid cell is at least 48x48, at every width (no smaller column in any @media rule)', () => {
+  const rules = cssRules(css);
+  const cell = rules.find((r) => r.selectors.split(',').map((x) => x.trim()).includes('.jump'));
+  assert.ok(cell, 'a .jump rule exists');
+  assert.match(cell.body, /min-height:\s*48px/);
+  assert.match(cell.body, /min-width:\s*48px/);
+  const grids = rules.filter((r) => r.selectors.split(',').map((x) => x.trim()).includes('.jumpgrid') && /grid-template-columns/.test(r.body));
+  assert.ok(grids.length >= 1, 'a .jumpgrid column rule exists');
+  for (const g of grids) {
+    const widths = [...g.body.matchAll(/(?:minmax\(\s*|auto-fill,\s*|auto-fit,\s*)(\d+)px/g)].map((m) => Number(m[1]));
+    assert.ok(widths.length > 0, `the column width is in px: ${g.body.trim()}`);
+    for (const w of widths) assert.ok(w >= 48, `a jump-grid column is ${w}px (< 48): ${g.body.trim()}`);
+  }
+  // the three screens that draw the grid all use these classes
+  for (const id of ['jumpGrid', 'exJumpGrid', 'resJumpGrid']) assert.match(html, new RegExp(`class="jumpgrid"[^>]*id="${id}"|id="${id}"[^>]*class="jumpgrid"`), `${id} uses .jumpgrid`);
+});

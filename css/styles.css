@@ -187,7 +187,10 @@ textarea:focus{outline:none;border-color:var(--accent);}
 
 .jumpgrid{
   display:grid;
-  grid-template-columns:repeat(auto-fill, minmax(38px, 1fr));
+  /* BUG-04 (D50): every cell is a 48x48 tap target (AGENTS.md). Fixed-width columns keep the cells square; the spare width is
+     shared between the columns, so the grid still reaches both edges of the page. */
+  grid-template-columns:repeat(auto-fill, 48px);
+  justify-content:space-between;
   gap:8px;
   margin:18px 0 24px;
 }
@@ -203,7 +206,8 @@ textarea:focus{outline:none;border-color:var(--accent);}
   justify-content:center;
   cursor:pointer;
   touch-action:manipulation;
-  min-height:38px;
+  min-width:48px;    /* BUG-04: was 38px */
+  min-height:48px;
 }
 .jump.answered{border-color:var(--success);color:var(--success);}
 .jump.unsure{border-color:#f5b942;color:#f5b942;}
@@ -601,7 +605,6 @@ button:focus-visible,summary:focus-visible,input:focus-visible,textarea:focus-vi
   .btn{font-size:14px;padding:13px 14px;}
   .nav-row{gap:8px;}
   .top-actions{flex-wrap:wrap;}
-  .jumpgrid{grid-template-columns:repeat(auto-fill, minmax(32px, 1fr));}
   .tabs{gap:6px;}
   .tab{font-size:13px;padding:0 4px;}
 }

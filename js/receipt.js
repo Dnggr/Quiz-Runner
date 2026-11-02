@@ -477,6 +477,13 @@ export function findEmbeddedJson(markdown) {
 }
 
 /**
+ * BUG-36 (D51): the one message for a receipt that does not say which exam it is for. `parseReceipt` refuses such a receipt, and
+ * `receiptToEntry` (history.js) refuses it again because it is exported and must not trust its caller: `exam.quiz_id` keys the
+ * history entry (`<quiz_id>@<started_at>`) and its duplicate check, so an empty one would make unrelated exams look the same.
+ */
+export const RECEIPT_NO_QUIZ_ID_ERROR = 'The receipt does not say which exam it is for (exam.quiz_id is missing).';
+
+/**
  * BUG-22: is this text the Markdown form of a receipt? The marker only counts when the text is not bare JSON: a text that
  * starts with `{` is JSON, and a question or explanation inside it may contain the marker as plain text (the Markdown
  * export escapes `<` in its data block, the `.json` export does not). Text before the marker is still tolerated, as before.
@@ -541,7 +548,7 @@ export function parseReceipt(text) {
   else if (data.version !== SPEC_VERSION) out.warnings.push(`The receipt is spec v${data.version}, this app writes v${SPEC_VERSION}. Reading it as best as possible.`);
 
   const exam = isPlainObject(data.exam) ? data.exam : null;
-  if (!exam || typeof exam.quiz_id !== 'string' || exam.quiz_id.trim() === '') out.errors.push('The receipt does not say which exam it is for (exam.quiz_id is missing).');
+  if (!exam || typeof exam.quiz_id !== 'string' || exam.quiz_id.trim() === '') out.errors.push(RECEIPT_NO_QUIZ_ID_ERROR);
   const list = Array.isArray(data.topic_list) ? data.topic_list : null;
   const usable = list ? list.filter((t) => isPlainObject(t) && typeof t.id === 'string' && t.id.trim() !== '' && typeof t.name === 'string' && t.name.trim() !== '') : [];
   if (usable.length === 0) out.errors.push('The receipt has no topic list (topic_list), so the next quiz cannot reuse your topics.');

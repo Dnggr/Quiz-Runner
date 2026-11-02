@@ -11,7 +11,7 @@ import {
 } from './constants.js';
 import { snapshotFromHistoryEntry, packFitsEntry, packTopics, storedTopics, normalizeName } from './analytics.js';
 import { ratingForPercent } from './grader.js';
-import { buildReceipt, coveredConcepts, parseIsoDateMs } from './receipt.js';
+import { buildReceipt, coveredConcepts, parseIsoDateMs, RECEIPT_NO_QUIZ_ID_ERROR } from './receipt.js';
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const MAX_STORED_TOPICS = 200;   // a pack lists 6-15 topics (QUIZ_PACK_SPEC rule 7); this only stops a bogus pack from filling storage
@@ -364,6 +364,10 @@ export function receiptToEntry(parsed, { now = new Date() } = {}) {
   const warnings = Array.isArray(parsed.warnings) ? [...parsed.warnings] : [];
   const exam = isPlainObject(d.exam) ? d.exam : {};
   const result = isPlainObject(d.result) ? d.result : {};
+  // BUG-36 (D51): `parseReceipt` already refuses a receipt without a usable `exam.quiz_id`; this function is exported, so it
+  // checks again instead of building an entry with an empty id (`@<date>`) that `findDuplicate` would match to any other such entry.
+  const quizId = text(exam.quiz_id, 200);
+  if (quizId === '') return { ok: false, error: RECEIPT_NO_QUIZ_ID_ERROR };
 
   const total = count(exam.total);
   const nums = ['correct', 'wrong', 'skipped', 'unsure'].map((k) => count(result[k]));
@@ -426,7 +430,6 @@ export function receiptToEntry(parsed, { now = new Date() } = {}) {
   if (finishedMs !== null && finishedAt === '') {
     warnings.push('The receipt\'s exam duration is too large to be real, so it was ignored.');
   }
-  const quizId = text(exam.quiz_id, 200);
   const entry = {
     entry_version: HISTORY_SCHEMA_VERSION,
     id: `${quizId}@${startedAt}`,

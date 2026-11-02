@@ -134,7 +134,7 @@ To be done on a real device, on the Vercel preview of the branch, with a pack lo
 | Content clears the status bar and the home indicator; nothing is cut off at the top or bottom | Not run | Not run |
 | Landscape: content clears the notch / rounded corners on the left and right | Not run | Not run |
 | Finish dialog fits and scrolls on a small screen; its buttons are reachable | Not run | Not run |
-| Exam: options, Previous / Not sure / Next and the jump grid are comfortable to tap | Not run | Not run |
+| Exam: options, Previous / Not sure / Next and the jump grid are comfortable to tap (the grid cells are 48×48 since BUG-04, so a 130-question grid is about 22 rows tall: check that scrolling to it is not a chore) | Not run | Not run |
 | Refresh in the middle of an exam resumes it | Not run | Not run |
 | Load by file picker and by paste; copy and download a receipt | Not run | Not run |
 | With a screen reader on (VoiceOver / TalkBack): options read as "radio button, A. …, selected / not selected"; the jump cells read "Question 3, answered" | Not run | Not run |
@@ -157,7 +157,15 @@ Audit of 2026-10-31 (headless Chromium through Playwright at 320 and 390 px, and
 - The whole loop ran with no console errors: load, exam, reload and resume, finish dialog, Results tabs, receipt (Copy, `.md`, `.json`), Next quiz prompt in Targeted mode, Progress, old exam read-only, retention prompt, profile receipt. Grading gave 10/10 for an all-correct run and 0/10 for an all-wrong run.
 - Resilience: all nine `samples/broken/` files give the expected screen; a pack cut off after question 6 loads as "Loaded 6 of 10" and merges with a second part; storage that throws, a full quota, and damaged `session` / `history` each give a notice and no white screen; backup restore and receipt import are idempotent.
 - Pack text such as `<img onerror>` and `<script>` in titles, topics, questions, options and explanations is shown as text on the Topics preview, the exam, Results (review) and the receipt screens; the Progress list was not tried with it. No explanation or concept is anywhere in the document during an exam. Receipt times are right in Manila, Los Angeles, Kolkata and Kiritimati.
-- No horizontal overflow and no text field under 16px on any screen at 320 and 390 px. Controls under 48px are listed as BUG-04.
+- No horizontal overflow and no text field under 16px on any screen at 320 and 390 px. Controls under 48px were listed as BUG-04 (jump-grid cells, fixed in the eleventh pass).
 - Fuzzing (about 60,000 cases): every cut-off point of the sample pack and 4,000 random edits never throw in the loader; the topic-status rules match an independent copy of `RECEIPT_SPEC` §3 for every case; the next-exam allocation always sums to N (one edge case: BUG-07); receipts re-read to the same data.
 - A 130-question pack (81 KB) goes from the Load button to the Topics preview in about 15 ms on the development machine. A 130-question receipt with everything on is about 23k tokens when 109 questions were missed, and about 2k tokens with missed-question detail off.
 - Seven bugs are flagged in `DEV_CHECKLIST.md` ("Bug flags"), none of them high severity. Nothing was fixed.
+
+Eleventh pass (2026-11-01; headless Chromium through Playwright at 320 and 390 px, a 130-question synthetic pack; still no real phone and no real AI chat):
+
+- **Tap targets:** every button, input, summary, tab and radio on the load, Quick Paste, Topics preview, exam, finish dialog, Results (four tabs), Prompt Builder and Progress screens was measured. Before the BUG-04 fix 1,040 of 1,232 measurements were under 48px (all jump-grid cells, 38×38); after it, 0 of 1,232.
+- **No horizontal overflow** on any screen at 320 and 390 px, and no console errors or failed requests across the whole loop (load, exam, keyboard answers, reload and resume, finish, Results, receipt screen, Quick Paste export, Progress, backup download). No request left the page.
+- **No answers in the exam DOM:** no explanation text, no `data-answer`, and no correct / wrong class after answering. A reload on `#/exam` resumes the exam; a reload on the bare URL shows the resume banner.
+- **BUG-36** was reproduced through `parseReceipt` → `importReceipt` (the path of the Import button) and through a direct `receiptToEntry` call: only the direct call let a receipt without `exam.quiz_id` through. Fixed in `receiptToEntry` (D51).
+- Flagged, not fixed: BUG-37 (receipt-derived topic names in the instruction text of a prompt), BUG-38 (focus and page title on a screen change), BUG-39 (contrast of the primary button), BUG-40 and BUG-41 (cosmetic). Colour contrast was computed from the tokens in `css/styles.css` with the WCAG formula.
