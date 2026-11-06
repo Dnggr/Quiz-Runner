@@ -137,7 +137,7 @@ Things the specs already expect, so look for them first (this is a watch list, n
 - A reply cut off before the end ("Loaded 97 of 130" and the Continue prompt).
 - Question count off by a few, or numbering gaps and duplicates.
 - A `topic` id that is not in `meta.topics`; an `answer` letter that is not among the options.
-- Correct letters skewed (one letter above 40%) or in long runs.
+- Correct letters skewed (one letter above 40%) or in long runs. Since BUG-46 the app spreads them itself after loading: in a real run, check that the Topics preview says the choices were shuffled, that the "spread out" warning is gone, and write down how many questions the preview says kept the AI's order (explanations that name an option letter, BUG-49).
 - Parts that change `meta` (different `quiz_id`, topics or totals), parts that restart numbering at 1, or a part sent twice.
 - The AI explaining or revealing answers in the chat despite the delivery block.
 - Targeted or retention packs that rename, renumber or drop topics from the receipt.
@@ -188,3 +188,8 @@ Eleventh pass (2026-11-01; headless Chromium through Playwright at 320 and 390 p
 - **No answers in the exam DOM:** no explanation text, no `data-answer`, and no correct / wrong class after answering. A reload on `#/exam` resumes the exam; a reload on the bare URL shows the resume banner.
 - **BUG-36** was reproduced through `parseReceipt` → `importReceipt` (the path of the Import button) and through a direct `receiptToEntry` call: only the direct call let a receipt without `exam.quiz_id` through. Fixed in `receiptToEntry` (D51).
 - Flagged, not fixed: BUG-37 (receipt-derived topic names in the instruction text of a prompt), BUG-38 (focus and page title on a screen change), BUG-39 (contrast of the primary button), BUG-40 and BUG-41 (cosmetic). Colour contrast was computed from the tokens in `css/styles.css` with the WCAG formula.
+
+Thirteenth pass (2026-11-06; jsdom, no real browser, no real phone, no real AI chat):
+
+- **BUG-46 (answer spread):** a synthetic 150-question pack with "A" correct for 73 questions (the owner's screenshot) was pasted into the real `main.js` in a DOM: the preview showed no warning and the note "The answer choices were shuffled…", Start exam saved a session with A 37 · B 37 · C 38 · D 38, longest run 3, and every correct answer was still the same option text. `tests/answer-balance.test.js` covers the rest. Not seen on a phone.
+- Probed while reading the loader and validator, flagged not fixed: BUG-47 (the spread warning counts True/False questions), BUG-48 (long runs unchecked), BUG-49 (explanations that name a letter), BUG-50 (option keys such as `A)`), BUG-51 (duplicate option texts), BUG-52 (answers such as `B.`), BUG-53 (the letters are listed twice).

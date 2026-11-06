@@ -84,6 +84,9 @@ export const CHARS_PER_TOKEN = 4;                      // size estimate shown on
 
 // ---- Pack validation (QUIZ_PACK_SPEC §7) ---------------------------------
 export const ANSWER_SKEW_MAX_SHARE = 0.40;   // warn when any correct letter is ABOVE this share
+// BUG-46 (D53): the app spreads the correct letters itself after a pack loads (`balance.js`).
+export const ANSWER_MAX_RUN = 3;             // QUIZ_PACK_SPEC rule 6: never more than this many identical correct letters in a row
+export const BALANCE_MAX_ATTEMPTS = 400;     // random orderings tried to keep every run within ANSWER_MAX_RUN before taking the best one
 export const EXPECTED_OPTION_COUNT = 4;
 export const OPTION_LETTERS = Object.freeze(['A', 'B', 'C', 'D']);
 export const MIN_QUESTIONS_PER_TOPIC_INITIAL = 3;

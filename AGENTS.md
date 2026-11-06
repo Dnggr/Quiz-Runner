@@ -29,7 +29,7 @@ If code and a spec disagree, the spec wins unless the owner approves a change. C
 ## Tech rules
 - Vanilla HTML/CSS/JS, **ES modules, no build step, no frameworks**, no new dependencies without asking.
 - Static hosting only. **No backend, no accounts, no API keys, no network calls** (including analytics and fonts from CDNs).
-- Pure logic modules (`loader`, `validator`, `grader`, `analytics`, `receipt`, `promptBuilder`) must not touch the DOM so they can be unit-tested with `node --test`.
+- Pure logic modules (`loader`, `validator`, `grader`, `analytics`, `receipt`, `promptBuilder`, `balance`) must not touch the DOM so they can be unit-tested with `node --test`.
 - All persistence goes through `store.js`. Keys are namespaced `qr:v1:`. Wrap every `localStorage` access in try/catch and fall back to memory.
 - Thresholds, bands, versions, and storage keys live in `constants.js` only. Never hard-code them elsewhere.
 

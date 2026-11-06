@@ -25,6 +25,7 @@ import { buildSession, saveSession, loadSession, clearSession, describeSession }
 import { loadPromptSettings, savePromptSettings } from './settings.js';
 import { buildProgress, openPastExam, examDate } from './progress.js';
 import { addToAssembly, assemblyStatus, describeAddition, formatRanges } from './parts.js';
+import { balanceResult, describeBalance } from './balance.js';
 import { scanStoredData, resetStoredKey, damagedText, describeStorageFailure, prunablePacks, pruneOldestPack } from './storagehealth.js';
 
 const $ = (id) => document.getElementById(id);
@@ -198,10 +199,14 @@ initLoadScreen({
       return;
     }
     assembly = step.assembly;
+    // BUG-46 (D53): the correct letters are spread evenly here, on a copy. `assembly` keeps the pack as the AI wrote it, so a
+    // part added later is merged with the original and the whole is balanced again; the exam, the saved pack and the history
+    // all see the balanced copy.
+    const balanced = balanceResult(step.result);
     resetPackScreens();
-    preview.show(step.result, [note, describeAddition(step)].filter(Boolean).join(' '), step.status);
+    preview.show(balanced.result, [note, describeAddition(step), describeBalance(balanced.report)].filter(Boolean).join(' '), step.status);
     packLoaded = true;
-    packResult = step.result;
+    packResult = balanced.result;
     router.navigate('preview');
   },
   onPackProblems: (result, note) => showPackProblems(result, note),
