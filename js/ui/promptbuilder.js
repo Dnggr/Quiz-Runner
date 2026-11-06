@@ -4,7 +4,7 @@
 // what is remembered is decided by settings.js.
 // All text from a receipt is untrusted: it only goes into the DOM with textContent / `.value`.
 import {
-  MODES, RECEIPT_MODES, presetCount, defaultOptions, buildPrompt, receiptInfo, defaultTopicRows, summarizeTarget,
+  MODES, RECEIPT_MODES, SOURCES, presetCount, defaultOptions, buildPrompt, receiptInfo, defaultTopicRows, summarizeTarget,
 } from '../promptBuilder.js';
 import { parseReceipt, formatTokenEstimate } from '../receipt.js';
 import { SKILLS, MAX_PACK_QUESTIONS } from '../constants.js';
@@ -16,6 +16,12 @@ const MODE_HELP = {
   targeted: 'New questions that focus on the weak topics in the receipt of an earlier exam, plus some from topics you already know.',
   retention: 'A short check across all the topics in a receipt, to test long-term memory.',
   custom: 'Your own task. The quiz format and delivery rules are still added so the app can load the result.',
+};
+// BUG-42: the learner has no course files. The initial exam is then built from reliable sources instead.
+const MODE_HELP_INITIAL_WEB = 'A first practice exam on your subject, built from reliable sources. The AI also writes the topic list.';
+const SOURCE_HELP = {
+  files: 'Attach your files to the AI chat before you paste the prompt.',
+  web: 'No files needed. The AI looks the subject up in reliable sources (official documentation, standards, universities, textbooks). If your AI cannot browse the web, it uses only well-established knowledge and says so. Check a few answers against your class notes or a textbook.',
 };
 const COUNT_HELP_RECEIPT = 'Changing this spreads the questions across topics again. Editing a topic below changes this total.';
 
@@ -52,6 +58,7 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots, load
   const savedMode = saved.mode ?? 'initial';
   const state = {
     mode: savedMode,
+    source: saved.source ?? d.source,
     subject: saved.subject ?? '',
     learner: saved.learner ?? d.learner,
     count: String(saved.count ?? presetCount(savedMode)),
@@ -79,6 +86,7 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots, load
   function getOptions() {
     return {
       mode: state.mode,
+      source: state.source,
       subject: state.subject,
       learner: state.learner,
       count: state.count,
@@ -291,7 +299,8 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots, load
   function render() {
     const mode = state.mode;
     for (const btn of $('pbModes').querySelectorAll('[data-mode]')) btn.setAttribute('aria-pressed', String(btn.dataset.mode === mode));
-    $('pbModeHelp').textContent = MODE_HELP[mode];
+    $('pbModeHelp').textContent = state.source === 'web' && mode === 'initial' ? MODE_HELP_INITIAL_WEB : MODE_HELP[mode];
+    $('pbSourceHelp').textContent = SOURCE_HELP[state.source];
     $('pbCountHelp').textContent = isReceiptMode() ? COUNT_HELP_RECEIPT : '';
 
     const usesMix = mode === 'initial' || mode === 'targeted';
@@ -436,6 +445,13 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots, load
     });
   }
 
+  for (const radio of document.querySelectorAll('input[name="pbSource"]')) {
+    radio.addEventListener('change', () => {
+      if (radio.checked && SOURCES.includes(radio.value)) state.source = radio.value;
+      changed();
+    });
+  }
+
   $('pbReceiptText').addEventListener('input', (e) => setReceiptText(e.target.value));
   $('pbLatestBtn').addEventListener('click', useLatest);
   $('pbClearReceiptBtn').addEventListener('click', clearReceipt);
@@ -453,6 +469,8 @@ export function initPromptBuilder({ onBack, getLatestReceipt, getSnapshots, load
   $('pbModerate').value = state.moderate;
   $('pbChallenging').value = state.challenging;
   $('pbPartSize').value = state.partSize;
+  $('pbSourceFiles').checked = state.source === 'files';
+  $('pbSourceWeb').checked = state.source === 'web';
   $('pbDeliveryFile').checked = state.delivery === 'file-or-code';
   $('pbDeliveryParts').checked = state.delivery === 'parts';
   render();

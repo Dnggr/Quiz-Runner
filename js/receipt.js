@@ -181,11 +181,16 @@ export function formatTokenEstimate(text) {
 // ---- section 10: the compact Quiz Pack format (PROMPT_TEMPLATES "FORMAT_SPEC") -----------------------------------
 // Keep in sync with docs/ai/PROMPT_TEMPLATES.md. The Prompt Builder (P5) embeds the same block.
 
+/** The hint written after `"source_note":` in the format block: what the AI should put there. Files is the default (the receipt's section 10 uses it). */
+export const SOURCE_NOTE_HINT_FILES = 'which of my files you used';
+/** Same hint for a prompt where the learner has no files (Prompt Builder source "web"): the AI names the sources it used. */
+export const SOURCE_NOTE_HINT_WEB = 'the reliable sources you used (site, standard, or book names)';
+
 /**
  * @param {{ quizId: string, subject: string, quizType: string, quizNumber: number, part?: number, totalParts?: number,
- *           count: number, specVersion?: number }} p
+ *           count: number, specVersion?: number, sourceNote?: string }} p
  */
-export function buildFormatSpec({ quizId, subject, quizType, quizNumber, part = 1, totalParts = 1, count, specVersion = SPEC_VERSION }) {
+export function buildFormatSpec({ quizId, subject, quizType, quizNumber, part = 1, totalParts = 1, count, specVersion = SPEC_VERSION, sourceNote = SOURCE_NOTE_HINT_FILES }) {
   return [
     `OUTPUT FORMAT (Quiz Pack v${specVersion})`,
     'Return one JSON object and nothing else:',
@@ -204,7 +209,7 @@ export function buildFormatSpec({ quizId, subject, quizType, quizNumber, part = 
     `    "total_questions": ${count},`,
     '    "generated_by": "…",',
     '    "generated_on": "YYYY-MM-DD",',
-    '    "source_note": "which of my files you used",',
+    `    "source_note": ${JSON.stringify(sourceNote)},`,
     '    "topics": [ { "id": "t1", "name": "…", "subtopics": ["…"] } ],',
     '    "notes": []',
     '  },',

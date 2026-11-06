@@ -1,7 +1,7 @@
 // settings.js — the last-used Prompt Builder options, kept in the `settings` record (P5-08; docs/PLAN.md §7).
 // Pure module: no DOM. All storage goes through the store passed in (store.js), so tests can inject a fake one.
 //
-// What is remembered: mode, subject, learner, question count, difficulty mix, skills, delivery, part size, custom task.
+// What is remembered: mode, source (files / web, BUG-42), subject, learner, question count, difficulty mix, skills, delivery, part size, custom task.
 // What is not: the pasted receipt and the per-topic counts (they belong to one exam and can hold its details), and the
 // topic range (the screen has no field for it).
 // Every field is checked on the way in and on the way out. A stored value that is missing or wrong is left out, so the
@@ -9,7 +9,7 @@
 import {
   STORAGE_KEYS, SETTINGS_PROMPT_BUILDER_FIELD, PROMPT_SETTINGS_VERSION, SKILLS,
 } from './constants.js';
-import { MODES, DELIVERIES } from './promptBuilder.js';
+import { MODES, DELIVERIES, SOURCES } from './promptBuilder.js';
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -24,7 +24,7 @@ const whole = (v) => {
  * Keep only the fields of `raw` that are valid, in their stored form. `raw` may be the options the screen sends to the
  * builder (numbers as digit strings) or something read back from storage.
  * @param {unknown} raw
- * @returns {{ mode?: string, subject?: string, learner?: string, count?: number,
+ * @returns {{ mode?: string, source?: string, subject?: string, learner?: string, count?: number,
  *   difficulty?: { easy: number, moderate: number, challenging: number }, skills?: string[], delivery?: string,
  *   partSize?: number, customTask?: string }}
  */
@@ -33,6 +33,7 @@ export function sanitizePromptSettings(raw) {
   if (!isPlainObject(raw)) return out;
 
   if (MODES.includes(raw.mode)) out.mode = raw.mode;
+  if (SOURCES.includes(raw.source)) out.source = raw.source;
   if (typeof raw.subject === 'string') out.subject = raw.subject.replace(/\s+/g, ' ').trim();
   if (typeof raw.learner === 'string' && raw.learner.trim() !== '') out.learner = raw.learner.replace(/\s+/g, ' ').trim();
   if (whole(raw.count) >= 1) out.count = whole(raw.count);

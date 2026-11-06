@@ -1,22 +1,25 @@
 # Prompt Templates — v1
 
 Audience: developers implementing `promptBuilder.js`, and anyone tuning the wording.
-The Prompt Builder assembles the final prompt from the blocks below. The result is **self-contained**: it is pasted into a fresh Claude or ChatGPT chat where the learner has attached their course files, and no other document is available to the AI.
+The Prompt Builder assembles the final prompt from the blocks below. The result is **self-contained**: it is pasted into a fresh Claude or ChatGPT chat where the learner has attached their course files (or, with source `web`, has none: see "Source mode"), and no other document is available to the AI.
 
 `{{placeholders}}` are filled by the builder. Text in `[brackets]` is conditional.
 
 Assembly order:
 
 ```
-ROLE_BLOCK
-MODE_BLOCK (initial | targeted | retention | custom)
+ROLE_BLOCK                 "files" source; "web" source uses ROLE_BLOCK (web)
+MODE_BLOCK (initial | targeted | retention | custom)     "web" source: initial uses "initial (web)"
 [RECEIPT_BLOCK]            targeted and retention only
 [TOPIC_BLOCK]              targeted and retention only
-CONTENT_RULES
-FORMAT_SPEC
+[SOURCE_RULES (web)]       "web" source only (+ the receipt note in targeted and retention)
+CONTENT_RULES              "web" source uses CONTENT_RULES (web)
+FORMAT_SPEC                "web" source changes only the hint after "source_note"
 DELIVERY_BLOCK (file-or-code | parts)
-SELF_CHECK
+SELF_CHECK                 "web" source uses SELF_CHECK (web)
 ```
+
+**Source** (new, BUG-42): the learner chooses where the content comes from. `files` (default) is everything described in the blocks below the way it always was. `web` is for a learner who has **no course files** (no money, or the school gives none): the prompt says so and tells the AI to research the subject from reliable sources, or from well-established knowledge when it cannot browse. See "Source mode: no course files" below. The `files` prompt is unchanged byte for byte.
 
 Keep `FORMAT_SPEC` in sync with `QUIZ_PACK_SPEC.md`. A test must fail if `SPEC_VERSION` in the prompt differs from the loader's.
 
@@ -174,6 +177,64 @@ BEFORE YOU REPLY, silently check: the number of questions is exactly {{count}} (
 
 ---
 
+## Source mode: no course files (`web`)
+
+Why: a learner without files pasted the `files` prompt into ChatGPT and got "No files are attached... Please upload your files" back, because the prompt tells the AI to use only the attached files and not to use general knowledge (BUG-42). The `web` source replaces every block that mentions the learner's files and adds one block of source rules. Everything else (MODE_BLOCK for targeted, retention and custom, RECEIPT_BLOCK, TOPIC_BLOCK, FORMAT_SPEC, DELIVERY_BLOCK) is the same as for `files`, except that FORMAT_SPEC writes `"source_note": "the reliable sources you used (site, standard, or book names)"`.
+
+The app never browses and never calls an AI: only the AI chat the learner pastes into does the research. The prompt cannot make an AI browse; it says what to do with and without browsing, and asks the AI to name its sources so the learner can check them. A pack made this way is still a normal Quiz Pack v1 (`meta.source_note` and the optional `source_ref` carry the sources), so loading, grading and receipts do not change.
+
+### ROLE_BLOCK (web)
+```
+I am a {{learner}} studying {{subject}}. I do not have course files or notes for this, so nothing is attached to this chat. Build the content yourself, following the SOURCE RULES below. Keep terminology, concepts, and level of detail suited to a student at my level taking a standard course on this subject.
+```
+
+### initial (web)
+```
+TASK: Build a practice exam of exactly {{count}} multiple-choice questions on {{subject}}.
+1. First define {{topic_min}}-{{topic_max}} topics (each with subtopics) that a standard course on {{subject}} covers, using only the sources the SOURCE RULES below allow. These go in "meta.topics" and act as my concept map.
+2. Then write the questions. Every topic must have at least 3 questions.
+3. Difficulty mix: about {{easy_pct}}% easy, {{moderate_pct}}% moderate, {{challenging_pct}}% challenging.
+4. Cover these skills: {{skills_list}}.
+```
+
+### SOURCE_RULES (web)
+```
+SOURCE RULES (I have no course files)
+- Research first. If you can browse or search the web, do it before writing. Take facts only from reliable sources: official documentation and standards (for example RFCs, IEEE, and vendor documentation), university course pages, peer-reviewed papers, and recognised textbooks or open educational resources. Do not use forums, social media, anonymous blogs, content farms, or other AI-written summaries as a source.
+- If you cannot browse, use only well-established knowledge that standard textbooks agree on, and say so in one note in "meta.notes". If you are not sure a fact is correct or current, leave it out.
+- Never invent facts, numbers, commands, names, or sources. Never make up a link.
+- Write the sources you actually used into "meta.source_note", by name (site, standard, or book title). Where it helps, add a short "source_ref" to a question.
+- Put anything else I should know (for example "no files, so the topics follow a standard course outline") in "meta.notes".
+- Do not ask me for files or for more details before you start. Build the quiz now.
+```
+
+### SOURCE_RULES receipt note (web, targeted and retention)
+
+Added as one more line at the end of SOURCE_RULES (web) when the prompt embeds a receipt, because every receipt carries the rule "use only the learner's course materials ... ask the learner to attach them" (RECEIPT_SPEC §7), which would bring the "please upload your files" reply back.
+
+```
+- The receipt above says to use only my course materials and to ask me to attach them. Ignore that part: I have no files, and these SOURCE RULES replace it.
+```
+
+### CONTENT_RULES (web)
+```
+CONTENT RULES
+- Mix question types: definitions, functions/purpose, structures/components, processes/how something works, differences/comparisons, sequences/order of steps, and application or scenario-based recall.
+- Do not make every question obvious or a straight copy of a sentence from a source. Reword concepts so I have to understand them, not pattern-match phrasing.
+- Exactly one correct answer per question. Make wrong options plausible and similar in length. Avoid "all of the above", "none of the above", and "A and B" style options.
+- Randomize which letter is correct. Aim for about 25% each of A, B, C, D, and never more than 3 identical correct letters in a row.
+- Give each question a short "concept" (max 8 words) naming what it tests.
+- Write each "explanation" in 1-3 simple, student-friendly sentences: why the correct option is right and why the most tempting wrong option is wrong.
+- Never put the answer or hints in the question text.
+```
+
+### SELF_CHECK (web)
+```
+BEFORE YOU REPLY, silently check: the number of questions is exactly {{count}} (or the part's share); topics all exist in "meta.topics" and each has at least 3 questions (initial exam only); correct letters are spread across A-D; no question copies a sentence from a source word for word; every fact comes from a reliable source or from well-established knowledge, and nothing is made up; "meta.source_note" names the sources used; the JSON is valid. Fix any problem first, then send.
+```
+
+---
+
 ## Repair prompt (generated when validation fails)
 
 ```
@@ -211,6 +272,7 @@ Send only the missing questions. Use the same quiz pack format with the same "me
 | Option | Placeholder | Default |
 |---|---|---|
 | Mode | — | initial |
+| Source | — (chooses the `web` blocks) | files (`files` · `web`) |
 | Learner | `learner` | BSIT student |
 | Subject | `subject` | (required) |
 | Question count | `count` | initial 130 · targeted 40 · retention 12 (whole number, 1 to 1000) |
@@ -224,7 +286,7 @@ Send only the missing questions. Use the same quiz pack format with the same "me
 | Receipt | `receipt_*`, `allocation_summary`, `priority_topics`, `based_on_quiz_id` | from pasted or latest receipt |
 
 Rules for the builder:
-- Never include the learner's course content in the prompt; they attach files to the chat themselves.
+- Never include the learner's course content in the prompt; they attach files to the chat themselves. With source `web` no files are expected, the prompt says so, and it still contains no course content.
 - Ask for at most 1000 questions (`MAX_PACK_QUESTIONS`, the same limit the loader uses: a `total_questions` above it is treated as unknown, so such a pack could never report missing questions). A larger count, or per-topic counts that add up to more, is an error and no prompt is built.
 - Show an approximate prompt length (characters ÷ 4).
 - Keep wording generic about AI products (don't promise features such as file creation; the delivery block already has a fallback).
@@ -237,3 +299,4 @@ Rules for the builder:
 - v1 (BUG-02) — the Prompt Builder asks for at most 1000 questions (Builder options). The block wording and the Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.
 - v1 (BUG-06) — the parts delivery block says "1 part" instead of "1 parts" when the part size is not smaller than the count (new `{{parts_word}}` placeholder). The Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.
 - v1 (BUG-10, BUG-16) — the builder numbers quiz ids per subject slug and above the highest `NN` already stored, so an id is not reused after an exam is deleted or by another subject with the same slug (Builder rules). The block wording and the Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.
+- v1 (BUG-42) — new Prompt Builder option **Source** (`files` default, `web`) for learners without course files: six new blocks (ROLE_BLOCK (web), initial (web), SOURCE_RULES (web), its receipt note, CONTENT_RULES (web), SELF_CHECK (web)) and a different hint after `source_note` in FORMAT_SPEC. The `files` prompt is unchanged. The Quiz Pack / Receipt formats are unchanged, so `SPEC_VERSION` stays 1.

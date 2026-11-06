@@ -57,6 +57,25 @@ A run passes when all of these hold. Anything else is a failure mode to log.
 - Parts: each part is a complete, valid pack with the same `quiz_id`, `total_questions` and `topics`; only `part` differs; the app merges them and shows "Parts loaded: 3 of 3".
 - Explanations are 1–3 plain sentences; nothing in the questions gives the answer away.
 
+### 3b. Runs for the no-files source (BUG-42, D52)
+
+Same procedure as §1, but in the Prompt Builder choose **No files: use reliable sources** and **attach nothing**. Subject: a topic you can check against a textbook. Nothing has been run yet.
+
+| # | AI | Run | Builder options | Result |
+|---|---|---|---|---|
+| W1 | Claude | Initial, web available | source *No files* · mode Initial · 40 · one reply | Not run |
+| W2 | ChatGPT | Initial, web search available | as W1 | Not run |
+| W3 | ChatGPT (free, no browsing) | Initial, no web | as W1 | Not run |
+| W4 | the AI of W1 or W2 | Targeted from the receipt of W1 or W2 | source *No files* · mode Targeted · 40 | Not run |
+
+A web run passes when everything in "What pass means" holds and also:
+
+- The AI **does not ask for files** or stop to ask a question (the failure this source was made for).
+- `meta.source_note` names real sources (site, standard or book), and no link or source is invented. Open two of them.
+- Without browsing (W3), `meta.notes` says so.
+- Check 10 questions against a textbook or the named source: the answer is right, and the explanation is not made up. Log every wrong one in §5.
+- W4: the AI ignores the receipt's "attach the learner's materials" rule and builds the quiz.
+
 ## 4. Run records
 
 Copy this block once per run (1–8) and fill it in.

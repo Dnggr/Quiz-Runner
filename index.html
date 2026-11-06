@@ -291,7 +291,7 @@ D. To prevent devices from communicating with one another
   <!-- SCREEN: PROMPT BUILDER (P5-01..P5-09). The prompt is made by promptBuilder.js; this screen only collects the options. -->
   <div class="screen" id="screen-builder">
     <h1>Prompt Builder</h1>
-    <div class="subtitle">Set up the quiz you want, then paste the prompt into an AI chat that has your course files attached. The prompt includes the quiz format, so it works in a fresh chat.</div>
+    <div class="subtitle">Set up the quiz you want, then paste the prompt into an AI chat. Attach your course files first, or choose “No files” below and the AI will use reliable sources instead. The prompt includes the quiz format, so it works in a fresh chat.</div>
 
     <div class="chip-bar" id="pbModes" role="group" aria-label="Mode">
       <button class="chip-btn" type="button" data-mode="initial" aria-pressed="true">Initial</button>
@@ -300,6 +300,14 @@ D. To prevent devices from communicating with one another
       <button class="chip-btn" type="button" data-mode="custom" aria-pressed="false">Custom</button>
     </div>
     <div class="field-help" id="pbModeHelp"></div>
+
+    <!-- BUG-42: where the content comes from. "No files" is for learners who have no course files; the AI researches reliable sources. -->
+    <fieldset class="toggle-group" id="pbSourceWrap">
+      <legend>Where should the questions come from?</legend>
+      <label class="toggle"><input type="radio" name="pbSource" id="pbSourceFiles" value="files" checked><span><span class="toggle-title">My course files</span><span class="toggle-help">I attach my files to the AI chat</span></span></label>
+      <label class="toggle"><input type="radio" name="pbSource" id="pbSourceWeb" value="web"><span><span class="toggle-title">No files: use reliable sources</span><span class="toggle-help">The AI looks the subject up in trusted sources</span></span></label>
+      <div class="field-help" id="pbSourceHelp"></div>
+    </fieldset>
 
     <div class="field">
       <label for="pbSubject">Subject</label>

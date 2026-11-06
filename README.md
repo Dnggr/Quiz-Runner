@@ -15,7 +15,7 @@ On the start screen tap **Prompt Builder**. Type the **subject**, pick a **mode*
 
 ### 2. Give it to an AI
 
-Open a **new** Claude or ChatGPT chat, **attach your own course files**, paste the prompt and send. The app never contains your course content and never talks to an AI. Don't edit the reply: save the file the AI gives you, or copy its single code block.
+Open a **new** Claude or ChatGPT chat, **attach your own course files**, paste the prompt and send. **No course files?** In step 1 choose **No files: use reliable sources** under *Where should the questions come from?* Nothing is attached then: the AI looks the subject up in reliable sources (official documentation, standards, universities, textbooks), or uses only well-established knowledge if it cannot browse, and names its sources in the quiz. Check a few answers against your notes or a textbook. The app never contains your course content and never talks to an AI. Don't edit the reply: save the file the AI gives you, or copy its single code block.
 
 ### 3. Load the quiz and check the topics
 

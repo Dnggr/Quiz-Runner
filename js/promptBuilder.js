@@ -3,8 +3,9 @@
 // fails if the two drift apart. The format block comes from receipt.js (`buildFormatSpec`), the one copy of it that the
 // receipt's section 10 uses too, so the prompt and the receipt cannot disagree about the pack format.
 //
-// Assembly order (PROMPT_TEMPLATES): ROLE · MODE · [RECEIPT · TOPIC_LIST] · CONTENT_RULES · FORMAT_SPEC · DELIVERY · SELF_CHECK.
-// The prompt never contains course content (AGENTS.md "Don'ts"): the learner attaches their files to the chat.
+// Assembly order (PROMPT_TEMPLATES): ROLE · MODE · [RECEIPT · TOPIC_LIST] · [SOURCE_RULES, source "web" only] · CONTENT_RULES · FORMAT_SPEC · DELIVERY · SELF_CHECK.
+// The prompt never contains course content (AGENTS.md "Don'ts"): the learner attaches their files to the chat (source "files"), or has none and the
+// AI researches the subject from reliable sources (source "web", BUG-42; the app itself never browses).
 //
 // SPEC GAP notes ("SPEC GAP:") mark every place the specs were silent or disagreed; they are listed in the hand-off notes.
 import {
@@ -14,7 +15,7 @@ import {
 } from './constants.js';
 import { groupIssues } from './validator.js';
 import { formatRanges } from './parts.js';
-import { buildFormatSpec, nextQuizId, nextQuizNumber, findEmbeddedJson, RECEIPT_END } from './receipt.js';
+import { buildFormatSpec, nextQuizId, nextQuizNumber, findEmbeddedJson, RECEIPT_END, SOURCE_NOTE_HINT_WEB } from './receipt.js';
 import { allocateNextExam, largestRemainder, normalizeName } from './analytics.js';
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -49,6 +50,12 @@ export const MODES = Object.freeze(['initial', 'targeted', 'retention', 'custom'
 /** Modes that are built from the receipt of an earlier exam (P5-05). */
 export const RECEIPT_MODES = Object.freeze(['targeted', 'retention']);
 export const DELIVERIES = Object.freeze(['file-or-code', 'parts']);
+/**
+ * Where the content comes from (BUG-42). `files`: the learner attaches their own course files to the AI chat (the original behaviour,
+ * the default). `web`: the learner has no files; the AI researches the subject from reliable sources, or from well-established
+ * knowledge when it cannot browse. The app never browses: this only changes the wording of the prompt.
+ */
+export const SOURCES = Object.freeze(['files', 'web']);
 
 /**
  * Question count a mode starts with: initial 130 · targeted 40 · retention 12. The learner can change it.
@@ -68,6 +75,7 @@ export function defaultOptions(mode = 'initial') {
     topicMax: DEFAULT_TOPIC_RANGE.max,
     difficulty: { ...DEFAULT_DIFFICULTY_PCT },
     skills: [...SKILLS],
+    source: 'files',
     delivery: 'file-or-code',
     partSize: DEFAULT_PART_SIZE,
     customTask: '',
@@ -137,6 +145,37 @@ Do not reveal or discuss the answers in the chat. Deliver the exam in {{total_pa
 - Otherwise reply with a single code block containing only the JSON.`,
 
   selfCheck: `BEFORE YOU REPLY, silently check: the number of questions is exactly {{count}} (or the part's share); topics all exist in "meta.topics" and each has at least 3 questions (initial exam only); correct letters are spread across A-D; no question copies a sentence from my files; everything comes from my files; the JSON is valid. Fix any problem first, then send.`,
+
+  // ---- BUG-42: source "web" (the learner has no course files). Copied from docs/ai/PROMPT_TEMPLATES.md "Source mode" ----
+  roleWeb: `I am a {{learner}} studying {{subject}}. I do not have course files or notes for this, so nothing is attached to this chat. Build the content yourself, following the SOURCE RULES below. Keep terminology, concepts, and level of detail suited to a student at my level taking a standard course on this subject.`,
+
+  initialWeb: `TASK: Build a practice exam of exactly {{count}} multiple-choice questions on {{subject}}.
+1. First define {{topic_min}}-{{topic_max}} topics (each with subtopics) that a standard course on {{subject}} covers, using only the sources the SOURCE RULES below allow. These go in \"meta.topics\" and act as my concept map.
+2. Then write the questions. Every topic must have at least 3 questions.
+3. Difficulty mix: about {{easy_pct}}% easy, {{moderate_pct}}% moderate, {{challenging_pct}}% challenging.
+4. Cover these skills: {{skills_list}}.`,
+
+  sourceRulesWeb: `SOURCE RULES (I have no course files)
+- Research first. If you can browse or search the web, do it before writing. Take facts only from reliable sources: official documentation and standards (for example RFCs, IEEE, and vendor documentation), university course pages, peer-reviewed papers, and recognised textbooks or open educational resources. Do not use forums, social media, anonymous blogs, content farms, or other AI-written summaries as a source.
+- If you cannot browse, use only well-established knowledge that standard textbooks agree on, and say so in one note in \"meta.notes\". If you are not sure a fact is correct or current, leave it out.
+- Never invent facts, numbers, commands, names, or sources. Never make up a link.
+- Write the sources you actually used into \"meta.source_note\", by name (site, standard, or book title). Where it helps, add a short \"source_ref\" to a question.
+- Put anything else I should know (for example \"no files, so the topics follow a standard course outline\") in \"meta.notes\".
+- Do not ask me for files or for more details before you start. Build the quiz now.`,
+
+  // Every receipt says "use only the learner's course materials ... ask the learner to attach them" (RECEIPT_SPEC §7); without this line that brings the "please upload your files" reply back.
+  sourceRulesWebReceiptNote: `- The receipt above says to use only my course materials and to ask me to attach them. Ignore that part: I have no files, and these SOURCE RULES replace it.`,
+
+  contentRulesWeb: `CONTENT RULES
+- Mix question types: definitions, functions/purpose, structures/components, processes/how something works, differences/comparisons, sequences/order of steps, and application or scenario-based recall.
+- Do not make every question obvious or a straight copy of a sentence from a source. Reword concepts so I have to understand them, not pattern-match phrasing.
+- Exactly one correct answer per question. Make wrong options plausible and similar in length. Avoid \"all of the above\", \"none of the above\", and \"A and B\" style options.
+- Randomize which letter is correct. Aim for about 25% each of A, B, C, D, and never more than 3 identical correct letters in a row.
+- Give each question a short \"concept\" (max 8 words) naming what it tests.
+- Write each \"explanation\" in 1-3 simple, student-friendly sentences: why the correct option is right and why the most tempting wrong option is wrong.
+- Never put the answer or hints in the question text.`,
+
+  selfCheckWeb: `BEFORE YOU REPLY, silently check: the number of questions is exactly {{count}} (or the part's share); topics all exist in \"meta.topics\" and each has at least 3 questions (initial exam only); correct letters are spread across A-D; no question copies a sentence from a source word for word; every fact comes from a reliable source or from well-established knowledge, and nothing is made up; \"meta.source_note\" names the sources used; the JSON is valid. Fix any problem first, then send.`,
 
   // ---- Phase 7: the two prompts the app writes for you when a pack is broken or incomplete (P7-02, P7-03) ----
   repair: `The quiz file you gave me could not be loaded. Here are the problems found:
@@ -421,6 +460,9 @@ export function buildPrompt(raw, { snapshots = [] } = {}) {
   const subject = oneLine(o.subject);
   if (subject === '') errors.push('Enter the subject.');
   const learner = oneLine(o.learner) || DEFAULT_LEARNER;
+  const source = SOURCES.includes(o.source) ? o.source : (o.source === undefined ? 'files' : null);   // BUG-42: absent (even as an explicit undefined) means files; anything else invalid is an error
+  if (source === null) errors.push('Choose where the questions come from: your files, or reliable web sources.');
+  const web = source === 'web';
 
   // ---- receipt modes: counts come from the per-topic rows ----
   let info = null;
@@ -516,10 +558,10 @@ export function buildPrompt(raw, { snapshots = [] } = {}) {
     quiz_id: quizId, total_parts: totalParts, part_size: partSize,
     parts_word: totalParts === 1 ? 'part' : 'parts',   // BUG-06: "1 part", never "1 parts"
   };
-  const blocks = [fill(TEMPLATES.role, common)];
+  const blocks = [fill(web ? TEMPLATES.roleWeb : TEMPLATES.role, common)];
 
   if (mode === 'initial') {
-    blocks.push(fill(TEMPLATES.initial, common));
+    blocks.push(fill(web ? TEMPLATES.initialWeb : TEMPLATES.initial, common));
   } else if (mode === 'custom') {
     blocks.push(fill(TEMPLATES.custom, { ...common, custom_task_text: customTask }));
   } else if (mode === 'targeted') {
@@ -541,10 +583,14 @@ export function buildPrompt(raw, { snapshots = [] } = {}) {
     // P5-06: the exact ids and names, stated outright, for every topic of the receipt (also those given 0 questions here).
     blocks.push(fill(TEMPLATES.topicList, { topic_lines: topicLines(info.topicList) }));
   }
-  blocks.push(TEMPLATES.contentRules);
-  blocks.push(buildFormatSpec({ quizId, subject, quizType: mode, quizNumber, part: 1, totalParts, count, specVersion: SPEC_VERSION }));
+  if (web) blocks.push(info ? `${TEMPLATES.sourceRulesWeb}\n${TEMPLATES.sourceRulesWebReceiptNote}` : TEMPLATES.sourceRulesWeb);   // BUG-42
+  blocks.push(web ? TEMPLATES.contentRulesWeb : TEMPLATES.contentRules);
+  blocks.push(buildFormatSpec({
+    quizId, subject, quizType: mode, quizNumber, part: 1, totalParts, count, specVersion: SPEC_VERSION,
+    ...(web ? { sourceNote: SOURCE_NOTE_HINT_WEB } : {}),
+  }));
   blocks.push(fill(delivery === 'parts' ? TEMPLATES.deliveryParts : TEMPLATES.deliveryFile, common));
-  blocks.push(fill(TEMPLATES.selfCheck, common));
+  blocks.push(fill(web ? TEMPLATES.selfCheckWeb : TEMPLATES.selfCheck, common));
 
   return {
     ok: true, errors: [], warnings,

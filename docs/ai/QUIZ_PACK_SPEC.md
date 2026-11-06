@@ -12,6 +12,7 @@ A **Quiz Pack** is a single JSON document containing the exam's metadata, topic 
 These come from the learner's study system and are not optional.
 
 1. **Ground everything in the learner's files.** Use only the materials the learner attached. Do not supplement with general knowledge. Keep terminology, concepts, and level of detail consistent with the files. If something is not supported by the files, do not invent it — record a short note in `meta.notes`.
+   **Exception (BUG-42): a learner with no files.** When the prompt says the learner has no course files (Prompt Builder source `web`), nothing is attached and the AI must not ask for files. It then grounds the content in **reliable sources** instead: official documentation and standards, university course pages, peer-reviewed papers, recognised textbooks. If it cannot browse, it uses only well-established knowledge that standard textbooks agree on and says so in `meta.notes`. It never invents facts, numbers, commands, names, sources or links, and it names the sources it used in `meta.source_note` (and, where useful, `source_ref` on a question). The rest of this section applies unchanged.
 2. **Exact count.** Produce exactly the number of questions requested (across all parts).
 3. **Mix difficulty** (`easy`, `moderate`, `challenging`) following the requested mix, and mix **skills**: definition, function, structure, process, comparison, sequence, application (scenario-based).
 4. **Reword, don't copy.** Questions must test understanding, not pattern-matching of a sentence from the notes. Include scenario-based questions.
@@ -58,7 +59,7 @@ The AI must write every field marked "yes". The app only **blocks** loading when
 | `based_on` | string | no | `quiz_id` of the exam this follows |
 | `generated_by` | string | no | e.g. "Claude", "ChatGPT" |
 | `generated_on` | string | no | `YYYY-MM-DD` |
-| `source_note` | string | no | Which files were used |
+| `source_note` | string | no | Which files were used; with no files (BUG-42), the reliable sources used, by name |
 | `notes` | array of strings | no | Anything the learner should know (e.g. "Materials only support 8 topics") |
 
 ### 3.2 `questions[]`
@@ -75,7 +76,7 @@ The AI must write every field marked "yes". The app only **blocks** loading when
 | `concept` | string | strongly recommended | Rule 8 |
 | `difficulty` | string | recommended | `easy` · `moderate` · `challenging` |
 | `skill` | string | recommended | `definition` · `function` · `structure` · `process` · `comparison` · `sequence` · `application` |
-| `source_ref` | string | no | e.g. "Lecture 3, slide 12" |
+| `source_ref` | string | no | e.g. "Lecture 3, slide 12"; with no files (BUG-42), e.g. "RFC 791 §3.2" |
 
 ## 4. Multi-part packs
 
@@ -164,6 +165,7 @@ If asked to split into parts: every part is a **complete, valid pack** with iden
 - [ ] Each `answer` exists in that question's `options`; correct letters are spread across A–D with no run longer than 3.
 - [ ] No question copies a sentence from the files word for word; several are scenario-based.
 - [ ] Every fact comes from the learner's files; anything unsupported is in `meta.notes`.
+- [ ] With no files (BUG-42): every fact comes from a reliable source or from well-established knowledge, nothing is made up, and `meta.source_note` names the sources used.
 - [ ] Output is valid JSON only (no commentary, no trailing commas, no smart quotes as delimiters).
 
 ## 7. Loader/validator behavior (for developers)
@@ -198,3 +200,4 @@ A pack loaded while a pack with the same `quiz_id` is still waiting on the Topic
 - v1 (BUG-23) — §7 names a missing, blank or non-text `meta.quiz_id` as an error. The format itself is unchanged (§3.1 already said `quiz_id` is required), so `SPEC_VERSION` stays 1.
 - v1 (BUG-27) — §7 says that a pack read back from storage is normalized before it is checked, and that one which is still invalid is refused. The format itself is unchanged, so `SPEC_VERSION` stays 1.
 - v1 (BUG-31) — §3.1 and §7 say that a pack missing `title`, `subject`, `quiz_type` or `total_questions` loads with one warning per field (an absent `total_questions` was silent before). The format itself is unchanged (§3.1 already marked them required), so `SPEC_VERSION` stays 1.
+- v1 (BUG-42) — §1 rule 1 has an exception for a learner with no files (reliable sources instead of the files), §3 says what `source_note` and `source_ref` hold then, and §6 has a matching self-check line. The format itself is unchanged, so `SPEC_VERSION` stays 1.

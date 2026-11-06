@@ -7,6 +7,8 @@ Quiz Runner is a static, mobile-first web app (deployed on Vercel at `quiz-runne
 
 The owner is a student. They attach course files to an AI chat (Claude or ChatGPT), paste a prompt, get a quiz file back, load it here, take the exam, and export a receipt to paste back into an AI.
 
+Some learners have no course files (no money, or the school gives none). The Prompt Builder's **Source** option `web` is for them: the prompt says nothing is attached and tells the AI to use reliable sources (BUG-42, D52). The app itself still never browses or calls an AI.
+
 ## The loop (keep this in mind for every change)
 1. **Prompt Builder** (in the app) → prompt to paste into an AI chat.
 2. AI returns a **Quiz Pack** (JSON file or one code block).
